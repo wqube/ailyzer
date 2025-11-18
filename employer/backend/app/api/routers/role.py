@@ -21,7 +21,6 @@ async def create_role(
         name=role.name,
         # Потом удалить надо будет. Так как будет создаваться автоматически после авторизации
         user=role.user
-
     )
 
     session.add(new_role)

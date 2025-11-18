@@ -212,7 +212,7 @@ async def refresh_access_token(
         )
     
     # 3. Проверяем срок действия
-    if token_record.expires_at < datetime.utcnow():
+    if token_record.expires_at < datetime.utcnow(): # type: ignore
         # Удаляем истёкший токен
         await session.delete(token_record)
         await session.commit()

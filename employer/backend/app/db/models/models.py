@@ -19,7 +19,7 @@ from sqlalchemy.orm import (
 # ---------- СПРАВОЧНИКИ ----------
 
 class Role(Base):
-    __tablename__ = "roles"
+    __tablename__ = "roles" # pyright: ignore[reportAssignmentType]
 
     role_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
@@ -30,7 +30,7 @@ class Role(Base):
 # ---------- ПОЛЬЗОВАТЕЛИ, ПРОФИЛИ, НАВЫКИ ----------
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "users" # type: ignore
     __table_args__ = (
         CheckConstraint("status IN ('active','blocked')", name="users_status_check"),
         UniqueConstraint("email", name="uq_users_email"),
@@ -78,7 +78,7 @@ class User(Base):
 # 👇 НОВАЯ МОДЕЛЬ: Token для хранения refresh токенов
 class Token(Base):
     """Таблица для хранения refresh токенов пользователей"""
-    __tablename__ = "tokens"
+    __tablename__ = "tokens" # type: ignore
     __table_args__ = (
         Index("idx_tokens_user", "user_id"),
     )
