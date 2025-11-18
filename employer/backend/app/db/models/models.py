@@ -45,7 +45,7 @@ class User(Base):
     )
     created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     status: Mapped[str] = mapped_column(Text, server_default=text("'active'"), nullable=False)
-
+    city: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     role: Mapped["Role"] = relationship(back_populates="users")
     profile: Mapped[Optional["Profile"]] = relationship(back_populates="user", uselist=False, cascade="all,delete-orphan")
     skills: Mapped[List["Skill"]] = relationship(
