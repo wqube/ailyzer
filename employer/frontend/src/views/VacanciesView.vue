@@ -11,11 +11,17 @@
 
     <div class="vacancies-content">
       <div class="container">
+        <!-- Индикатор загрузки -->
+        <div v-if="loading && vacancies.length === 0" class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Загрузка вакансий...</p>
+        </div>
+
         <!-- Список вакансий -->
-        <div class="vacancies-list">
+        <div class="vacancies-list" v-else-if="vacancies.length > 0">
           <div 
             v-for="vacancy in vacancies" 
-            :key="vacancy.id" 
+            :key="vacancy.vacancy_id || vacancy.id" 
             class="vacancy-card"
           >
             <div class="vacancy-header">
@@ -29,18 +35,21 @@
               <p><strong>Уровень:</strong> {{ getLevelText(vacancy.level) }}</p>
               <p><strong>Описание:</strong> {{ vacancy.description }}</p>
               <p><strong>Требования:</strong> {{ vacancy.requirements }}</p>
+              <p><strong>Создана:</strong> {{ formatDate(vacancy.created_at) }}</p>
             </div>
             
             <div class="vacancy-actions">
               <button 
                 @click="editVacancy(vacancy)" 
                 class="btn btn-outline"
+                :disabled="actionLoading"
               >
                 Редактировать
               </button>
               <button 
-                @click="deleteVacancy(vacancy.id)" 
+                @click="deleteVacancy(vacancy)" 
                 class="btn btn-danger"
+                :disabled="actionLoading"
               >
                 Удалить
               </button>
@@ -49,7 +58,7 @@
         </div>
 
         <!-- Сообщение если вакансий нет -->
-        <div v-if="vacancies.length === 0" class="empty-state">
+        <div v-else class="empty-state">
           <div class="empty-icon">📋</div>
           <h3>У вас пока нет вакансий</h3>
           <p>Создайте первую вакансию чтобы начать поиск кандидатов</p>
@@ -77,6 +86,7 @@
               v-model="vacancyForm.title" 
               required 
               placeholder="Например: Frontend Developer"
+              :disabled="formLoading"
             >
           </div>
 
@@ -86,6 +96,7 @@
               id="level" 
               v-model="vacancyForm.level" 
               required
+              :disabled="formLoading"
             >
               <option value="junior">Junior</option>
               <option value="middle">Middle</option>
@@ -102,6 +113,7 @@
               required 
               rows="4"
               placeholder="Опишите чем будет заниматься сотрудник..."
+              :disabled="formLoading"
             ></textarea>
           </div>
 
@@ -113,6 +125,7 @@
               required 
               rows="4"
               placeholder="Опишите требования к кандидату..."
+              :disabled="formLoading"
             ></textarea>
           </div>
 
@@ -121,18 +134,29 @@
               type="button" 
               @click="closeModal" 
               class="btn btn-outline"
+              :disabled="formLoading"
             >
               Отмена
             </button>
             <button 
               type="submit" 
-              :disabled="loading" 
+              :disabled="formLoading" 
               class="btn btn-primary"
             >
-              {{ loading ? 'Сохранение...' : (editingVacancy ? 'Обновить' : 'Создать') }}
+              {{ formLoading ? 'Сохранение...' : (editingVacancy ? 'Обновить' : 'Создать') }}
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Уведомления об ошибках -->
+    <div v-if="errorMessage" class="error-notification">
+      <div class="container">
+        <div class="error-content">
+          <span>{{ errorMessage }}</span>
+          <button @click="errorMessage = ''" class="btn-close-small">&times;</button>
+        </div>
       </div>
     </div>
   </div>
@@ -148,6 +172,9 @@ export default {
       vacancies: [],
       showCreateForm: false,
       loading: false,
+      formLoading: false,
+      actionLoading: false,
+      errorMessage: '',
       editingVacancy: null,
       vacancyForm: {
         title: '',
@@ -157,47 +184,24 @@ export default {
       }
     }
   },
-  computed: {
-    // Тестовые данные для демонстрации
-    testVacancies() {
-      return [
-        {
-          id: 1,
-          title: 'Frontend Developer (Vue.js)',
-          level: 'middle',
-          description: 'Разработка пользовательских интерфейсов для HR-платформы',
-          requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
-          status: 'active',
-          created_at: '2024-01-15'
-        },
-        {
-          id: 2,
-          title: 'Backend Developer (Python)',
-          level: 'senior',
-          description: 'Разработка API и бизнес-логики платформы',
-          requirements: 'Python 3+, FastAPI, PostgreSQL, опыт работы 3+ года',
-          status: 'active',
-          created_at: '2024-01-10'
-        }
-      ]
-    }
-  },
   methods: {
     // Загрузка вакансий
     async loadVacancies() {
       this.loading = true
+      this.errorMessage = ''
+      
       try {
-        // TODO: Заменить на реальный API вызов
-        // const response = await api.getMyVacancies()
-        // this.vacancies = response
-        
-        // Временное использование тестовых данных
-        this.vacancies = this.testVacancies
+        const response = await api.getMyVacancies()
+        this.vacancies = response
         
       } catch (error) {
         console.error('Error loading vacancies:', error)
-        // В случае ошибки показываем тестовые данные
-        this.vacancies = this.testVacancies
+        this.errorMessage = this.getErrorMessage(error)
+        
+        // Если ошибка авторизации - перенаправляем на логин
+        if (error.message.includes('401') || error.message.includes('authentication')) {
+          this.$router.push({ name: 'employer-login' })
+        }
       } finally {
         this.loading = false
       }
@@ -205,60 +209,92 @@ export default {
 
     // Создание/обновление вакансии
     async saveVacancy() {
-      this.loading = true
+      console.log('=== SAVE VACANCY CALLED ===')
+      console.log('Editing vacancy:', this.editingVacancy)
+      
+      this.formLoading = true
+      this.errorMessage = ''
+      
       try {
         if (this.editingVacancy) {
-          // TODO: Редактирование вакансии через API
-          // await api.updateVacancy(this.editingVacancy.id, this.vacancyForm)
-          console.log('Updating vacancy:', this.vacancyForm)
-        } else {
-          // TODO: Создание вакансии через API
-          // const newVacancy = await api.createVacancy(this.vacancyForm)
-          // this.vacancies.unshift(newVacancy)
-          console.log('Creating vacancy:', this.vacancyForm)
+          // ИСПРАВЛЕНО: используем vacancy_id вместо id
+          const vacancyId = this.editingVacancy.vacancy_id || this.editingVacancy.id
+          console.log('Vacancy ID for update:', vacancyId)
           
-          // Временное добавление в массив
-          const newVacancy = {
-            id: Date.now(),
-            ...this.vacancyForm,
-            status: 'active',
-            created_at: new Date().toISOString()
+          const updatedVacancy = await api.updateVacancy(vacancyId, this.vacancyForm)
+          console.log('Update response:', updatedVacancy)
+          
+          // Обновляем вакансию в списке - тоже исправляем ID
+          const index = this.vacancies.findIndex(v => 
+            (v.vacancy_id || v.id) === (this.editingVacancy.vacancy_id || this.editingVacancy.id)
+          )
+          if (index !== -1) {
+            this.vacancies.splice(index, 1, updatedVacancy)
           }
+        } else {
+          // Создание новой вакансии
+          const newVacancy = await api.createVacancy(this.vacancyForm)
+          console.log('Create response:', newVacancy)
           this.vacancies.unshift(newVacancy)
         }
         
         this.closeModal()
+        this.showSuccessMessage(this.editingVacancy ? 'Вакансия обновлена' : 'Вакансия создана')
         
       } catch (error) {
         console.error('Error saving vacancy:', error)
-        alert('Ошибка при сохранении вакансии')
+        this.errorMessage = this.getErrorMessage(error)
       } finally {
-        this.loading = false
+        this.formLoading = false
       }
     },
 
     // Редактирование вакансии
     editVacancy(vacancy) {
+      console.log('=== EDIT VACANCY ===')
+      console.log('Vacancy object:', vacancy)
+      
       this.editingVacancy = vacancy
-      this.vacancyForm = { ...vacancy }
+      this.vacancyForm = { 
+        title: vacancy.title,
+        level: vacancy.level,
+        description: vacancy.description,
+        requirements: vacancy.requirements
+      }
       this.showCreateForm = true
     },
 
     // Удаление вакансии
-    async deleteVacancy(vacancyId) {
+    async deleteVacancy(vacancy) {
+      console.log('=== DELETE VACANCY CALLED ===')
+      console.log('Vacancy object:', vacancy)
+      
+      // ИСПРАВЛЕНО: получаем ID из объекта вакансии
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      console.log('Vacancy ID to delete:', vacancyId)
+      
       if (!confirm('Вы уверены, что хотите удалить эту вакансию?')) {
         return
       }
 
+      this.actionLoading = true
+      this.errorMessage = ''
+      
       try {
-        // TODO: Удаление через API
-        // await api.deleteVacancy(vacancyId)
+        await api.deleteVacancy(vacancyId)
+        console.log('Delete successful')
         
-        this.vacancies = this.vacancies.filter(v => v.id !== vacancyId)
+        // ИСПРАВЛЕНО: фильтруем по правильному ID
+        this.vacancies = this.vacancies.filter(v => 
+          (v.vacancy_id || v.id) !== vacancyId
+        )
+        this.showSuccessMessage('Вакансия удалена')
         
       } catch (error) {
         console.error('Error deleting vacancy:', error)
-        alert('Ошибка при удалении вакансии')
+        this.errorMessage = this.getErrorMessage(error)
+      } finally {
+        this.actionLoading = false
       }
     },
 
@@ -272,6 +308,36 @@ export default {
         description: '',
         requirements: ''
       }
+      this.errorMessage = ''
+    },
+
+    // Показать успешное сообщение
+    showSuccessMessage(message) {
+      // Здесь можно добавить красивые уведомления
+      console.log(message)
+      // Или интегрировать с системой уведомлений, если есть
+    },
+
+    // Обработка ошибок
+    getErrorMessage(error) {
+      const message = error.message || 'Произошла ошибка'
+      
+      if (message.includes('401') || message.includes('authentication')) {
+        return 'Ошибка авторизации. Пожалуйста, войдите снова.'
+      } else if (message.includes('network') || message.includes('fetch')) {
+        return 'Ошибка соединения. Проверьте подключение к интернету.'
+      } else if (message.includes('500')) {
+        return 'Внутренняя ошибка сервера. Попробуйте позже.'
+      }
+      
+      return message
+    },
+
+    // Форматирование даты
+    formatDate(dateString) {
+      if (!dateString) return ''
+      const date = new Date(dateString)
+      return date.toLocaleDateString('ru-RU')
     },
 
     // Вспомогательные методы
@@ -532,6 +598,70 @@ export default {
   .modal-content {
     margin: 1rem;
     max-height: calc(100vh - 2rem);
+  }
+  /* Добавляем новые стили для индикаторов загрузки и ошибок */
+.loading-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #8B5FBF;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-notification {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #fef3f2;
+  border-bottom: 1px solid #fecdca;
+  padding: 1rem 0;
+  z-index: 1100;
+}
+
+.error-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #d92d20;
+  font-weight: 500;
+}
+
+.btn-close-small {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #d92d20;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .error-content {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+    }
   }
 }
 </style>

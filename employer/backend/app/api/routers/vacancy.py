@@ -56,9 +56,10 @@ async def get_my_vacancies(
 ):
     """
     Получить все вакансии текущего работодателя.
-    """
     
-    print(f"Getting vacancies for employer: {current_employer.user_id}")  # 👈 ДЛЯ ОТЛАДКИ
+    - Требует авторизации
+    - Возвращает только вакансии, созданные текущим пользователем
+    """
     
     result = await session.execute(
         select(Vacancy)
@@ -67,8 +68,6 @@ async def get_my_vacancies(
     )
     
     vacancies = result.scalars().all()
-    print(f"Found {len(vacancies)} vacancies")  # 👈 ДЛЯ ОТЛАДКИ
-    
     return vacancies
 
 
@@ -162,11 +161,6 @@ async def update_vacancy(
     vacancy.description = vacancy_update.description
     vacancy.requirements = vacancy_update.requirements
     vacancy.level = vacancy_update.level
-
-    # Обновляем только переданные поля
-    # update_data = vacancy_update.model_dump(exclude_unset=True)
-    # for field, value in update_data.items():
-    #     setattr(vacancy, field, value)
     
     await session.commit()
     await session.refresh(vacancy)

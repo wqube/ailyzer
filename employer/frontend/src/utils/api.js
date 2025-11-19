@@ -1,37 +1,13 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1'
+const API_BASE_URL = 'http://localhost:8000'
 
 // Флаг для использования mock данных
 const USE_MOCK_DATA = false;
 
-// Mock данные для разработки
-const MOCK_VACANCIES = [
-  {
-    vacancy_id: 1,
-    title: 'Frontend Developer (Vue.js)',
-    level: 'middle',
-    description: 'Разработка пользовательских интерфейсов для HR-платформы',
-    requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
-    status: 'active',
-    hr_id: 1,
-    created_at: '2024-01-15T10:00:00'
-  },
-  {
-    vacancy_id: 2,
-    title: 'Backend Developer (Python)',
-    level: 'senior',
-    description: 'Разработка бэкенд-системы для HR-платформы',
-    requirements: 'Опыт работы с Python 3+ года, FastAPI, PostgreSQL, Redis',
-    status: 'active',
-    hr_id: 1,
-    created_at: '2024-01-16T14:30:00'
-  }
-];
-
 export const api = {
-  // ============ АУТЕНТИФИКАЦИЯ ============
-  
+  // Регистрация пользователя (работодателя)
   async registerUser(userData) {
     if (USE_MOCK_DATA) {
+      // Mock успешной регистрации
       return new Promise((resolve) => {
         setTimeout(() => {
           resolve({
@@ -44,358 +20,453 @@ export const api = {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(userData)
-      });
+      })
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка регистрации');
+        let errorDetail = 'Ошибка регистрации'
+        try {
+          const errorData = await response.json()
+          errorDetail = errorData.detail || errorData.message || errorDetail
+        } catch (e) {
+          errorDetail = await response.text()
+        }
+        
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetail}`)
       }
       
-      return await response.json();
+      return await response.json()
     } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
+      console.error('Registration error:', error)
+      
+      if (error.message.includes('Email already registered')) {
+        throw new Error('Пользователь с таким email уже зарегистрирован')
+      } else if (error.message.includes('Network Error') || error.message.includes('Failed to fetch')) {
+        throw new Error('Не удалось подключиться к серверу. Проверьте, запущен ли бэкенд.')
+      } else {
+        throw new Error(error.message || 'Произошла ошибка при регистрации')
+      }
     }
   },
 
+  // Вход пользователя
   async loginUser(credentials) {
     if (USE_MOCK_DATA) {
+      // Mock успешного входа
       return new Promise((resolve) => {
         setTimeout(() => {
           resolve({
             access_token: 'mock_access_token_' + Math.random().toString(36).substr(2),
-            refresh_token: 'mock_refresh_token_' + Math.random().toString(36).substr(2),
-            token_type: 'bearer'
+            refresh_token: 'mock_refresh_token_' + Math.random().toString(36).substr(2)
           });
         }, 1000);
       });
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(credentials)
-      });
+      })
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка входа');
+        let errorDetail = 'Ошибка входа'
+        try {
+          const errorData = await response.json()
+          errorDetail = errorData.detail || errorData.message || errorDetail
+        } catch (e) {
+          errorDetail = await response.text()
+        }
+        
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetail}`)
       }
       
-      return await response.json();
+      return await response.json()
     } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      console.error('Login error:', error)
+      
+      if (error.message.includes('Invalid email or password')) {
+        throw new Error('Неверный email или пароль')
+      } else if (error.message.includes('User account is blocked')) {
+        throw new Error('Аккаунт заблокирован')
+      } else if (error.message.includes('Network Error') || error.message.includes('Failed to fetch')) {
+        throw new Error('Не удалось подключиться к серверу. Проверьте, запущен ли бэкенд.')
+      } else {
+        throw new Error(error.message || 'Произошла ошибка при входе')
+      }
     }
   },
 
+  // Обновление токена
   async refreshToken(refreshToken) {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ refresh_token: refreshToken })
-      });
+      })
       
       if (!response.ok) {
-        throw new Error('Token refresh failed');
+        throw new Error(`Token refresh failed with status: ${response.status}`)
       }
       
-      return await response.json();
+      return await response.json()
     } catch (error) {
-      console.error('Token refresh error:', error);
-      throw error;
+      console.error('Token refresh error:', error)
+      throw new Error('Не удалось обновить токен')
     }
   },
 
+  // Выход пользователя
   async logoutUser(refreshToken) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        headers: {
+      try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+          method: 'POST',
+          headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken })
-      });
+          },
+          body: JSON.stringify({ refresh_token: refreshToken })
+      })
       
       if (!response.ok) {
-        console.warn('Logout request failed, but continuing...');
+          console.warn('Logout request failed, but continuing...')
       }
       
-      return { success: true };
-    } catch (error) {
-      console.error('Logout error:', error);
-      return { success: false };
-    }
+      return { success: true }
+      } catch (error) {
+      console.error('Logout error:', error)
+      // Не бросаем ошибку при логауте, так как это не критично
+      return { success: false }
+      }
   },
 
-  // ============ ВАКАНСИИ ============
+      // ========== ВАКАНСИИ ==========
 
+  // Получить все вакансии пользователя
   async getMyVacancies() {
     if (USE_MOCK_DATA) {
       return new Promise((resolve) => {
         setTimeout(() => {
-          resolve(MOCK_VACANCIES);
+          resolve([
+            {
+              id: 1,
+              title: 'Frontend Developer (Vue.js)',
+              level: 'middle',
+              description: 'Разработка пользовательских интерфейсов для HR-платформы',
+              requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
+              status: 'active',
+              created_at: '2024-01-15'
+            },
+            {
+              id: 2,
+              title: 'Backend Developer (Python)',
+              level: 'senior',
+              description: 'Разработка API и бизнес-логики платформы',
+              requirements: 'Python 3+, FastAPI, PostgreSQL, опыт работы 3+ года',
+              status: 'active',
+              created_at: '2024-01-10'
+            }
+          ]);
         }, 1000);
       });
     }
 
-    const tokens = authUtils.getTokens();
-    const response = await fetch(`${API_BASE_URL}/vacancies/my`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
+    try {
+      const tokens = authUtils.getTokens();
+      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/my`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+    
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
       }
-    });
-  
-    if (!response.ok) {
-      throw new Error(`Failed to fetch vacancies: ${response.status}`);
+    
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching vacancies:', error);
+      throw error;
     }
-  
-    return await response.json();
   },
 
-  async getAllVacancies(statusFilter = 'active') {
+  // Создать вакансию
+  async createVacancy(vacancyData) {
     if (USE_MOCK_DATA) {
       return new Promise((resolve) => {
         setTimeout(() => {
-          const filtered = statusFilter 
-            ? MOCK_VACANCIES.filter(v => v.status === statusFilter)
-            : MOCK_VACANCIES;
-          resolve(filtered);
+          resolve({
+            id: Date.now(),
+            ...vacancyData,
+            status: 'active',
+            created_at: new Date().toISOString()
+          });
         }, 1000);
       });
     }
 
-    const url = statusFilter 
-      ? `${API_BASE_URL}/vacancies?status_filter=${statusFilter}`
-      : `${API_BASE_URL}/vacancies`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-  
-    if (!response.ok) {
-      throw new Error(`Failed to fetch vacancies: ${response.status}`);
-    }
-  
-    return await response.json();
-  },
-
-  async getVacancy(vacancyId) {
-    if (USE_MOCK_DATA) {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          const vacancy = MOCK_VACANCIES.find(v => v.vacancy_id === vacancyId);
-          if (vacancy) {
-            resolve(vacancy);
-          } else {
-            reject(new Error('Vacancy not found'));
-          }
-        }, 1000);
+    try {
+      const tokens = authUtils.getTokens();
+      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(vacancyData)
       });
-    }
-
-    const response = await fetch(`${API_BASE_URL}/vacancies/${vacancyId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
       }
-    });
-  
-    if (!response.ok) {
-      throw new Error(`Failed to fetch vacancy: ${response.status}`);
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating vacancy:', error);
+      throw error;
     }
-  
-    return await response.json();
   },
 
-async createVacancy(vacancyData) {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Получаем ID текущего пользователя из токена
-        const tokens = authUtils.getTokens();
-        const currentUserId = this.getUserIdFromToken(tokens.access_token) || 1;
-        
-        const newVacancy = {
-          vacancy_id: Date.now(),
-          title: vacancyData.title,
-          description: vacancyData.description,
-          requirements: vacancyData.requirements,
-          level: vacancyData.level,
-          status: 'active',
-          hr_id: currentUserId, // 👈 ИСПОЛЬЗУЕМ ID ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
-          created_at: new Date().toISOString()
-        };
-        MOCK_VACANCIES.push(newVacancy);
-        resolve(newVacancy);
-      }, 1000);
-    });
-  }
-
-  const tokens = authUtils.getTokens();
-  console.log('Creating vacancy with data:', vacancyData);
-  console.log('Using token:', tokens.access_token);
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/vacancies/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(vacancyData)
-    });
-    
-    console.log('Response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error response:', errorData);
-      throw new Error(errorData.detail || `Failed to create vacancy: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    console.log('Vacancy created:', result);
-    return result;
-    
-  } catch (error) {
-    console.error('Network error:', error);
-    throw error;
-  }
-},
-
-// Добавьте эту вспомогательную функцию
-getUserIdFromToken(token) {
-  if (!token) return null;
-  try {
-    // Простой парсинг JWT токена (если это JWT)
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.user_id || payload.sub;
-  } catch (e) {
-    console.warn('Cannot parse token:', e);
-    return null;
-  }
-},
-
+  // Обновить вакансию
   async updateVacancy(vacancyId, vacancyData) {
     if (USE_MOCK_DATA) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         setTimeout(() => {
-          const index = MOCK_VACANCIES.findIndex(v => v.vacancy_id === vacancyId);
-          if (index !== -1) {
-            MOCK_VACANCIES[index] = { ...MOCK_VACANCIES[index], ...vacancyData };
-            resolve(MOCK_VACANCIES[index]);
-          } else {
-            reject(new Error('Vacancy not found'));
-          }
+          resolve({
+            id: vacancyId,
+            ...vacancyData,
+            status: 'active',
+            updated_at: new Date().toISOString()
+          });
         }, 1000);
       });
     }
 
-    const tokens = authUtils.getTokens();
-    const response = await fetch(`${API_BASE_URL}/vacancies/${vacancyId}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(vacancyData)
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || `Failed to update vacancy: ${response.status}`);
+    try {
+      const tokens = authUtils.getTokens();
+      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(vacancyData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating vacancy:', error);
+      throw error;
     }
-    
-    return await response.json();
   },
 
+  // Удалить вакансию
   async deleteVacancy(vacancyId) {
     if (USE_MOCK_DATA) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         setTimeout(() => {
-          const index = MOCK_VACANCIES.findIndex(v => v.vacancy_id === vacancyId);
-          if (index !== -1) {
-            MOCK_VACANCIES[index].status = 'closed';
-            resolve({ success: true });
-          } else {
-            reject(new Error('Vacancy not found'));
-          }
+          resolve({ success: true, message: 'Vacancy deleted successfully' });
         }, 1000);
       });
     }
 
-    const tokens = authUtils.getTokens();
-    const response = await fetch(`${API_BASE_URL}/vacancies/${vacancyId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
+    try {
+      const tokens = authUtils.getTokens();
+      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
       }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || `Failed to delete vacancy: ${response.status}`);
+      
+      // Для DELETE запроса с 204 No Content
+      if (response.status === 204) {
+        return { success: true, message: 'Vacancy deleted successfully' };
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting vacancy:', error);
+      throw error;
     }
-    
-    return { success: true };
+  },
+
+  // // Обновить вакансию
+  // async updateVacancy(vacancyId, vacancyData) {
+  //   if (USE_MOCK_DATA) {
+  //     return new Promise((resolve) => {
+  //       setTimeout(() => {
+  //         resolve({
+  //           id: vacancyId,
+  //           ...vacancyData,
+  //           status: 'active',
+  //           updated_at: new Date().toISOString()
+  //         });
+  //       }, 1000);
+  //     });
+  //   }
+
+  //   try {
+  //     const tokens = authUtils.getTokens();
+  //     const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
+  //       method: 'PATCH',
+  //       headers: {
+  //         'Authorization': `Bearer ${tokens.access_token}`,
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify(vacancyData)
+  //     });
+      
+  //     if (!response.ok) {
+  //       const errorData = await response.json().catch(() => null);
+  //       throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+  //     }
+      
+  //     return await response.json();
+  //   } catch (error) {
+  //     console.error('Error updating vacancy:', error);
+  //     throw error;
+  //   }
+  // },
+
+  // // Удалить вакансию
+  // async deleteVacancy(vacancyId) {
+  //   if (USE_MOCK_DATA) {
+  //     return new Promise((resolve) => {
+  //       setTimeout(() => {
+  //         resolve({ success: true, message: 'Vacancy deleted successfully' });
+  //       }, 1000);
+  //     });
+  //   }
+
+  //   try {
+  //     const tokens = authUtils.getTokens();
+  //     const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
+  //       method: 'DELETE',
+  //       headers: {
+  //         'Authorization': `Bearer ${tokens.access_token}`,
+  //       }
+  //     });
+      
+  //     if (!response.ok) {
+  //       const errorData = await response.json().catch(() => null);
+  //       throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+  //     }
+      
+  //     // Для DELETE запроса может не быть тела ответа
+  //     if (response.status === 204) {
+  //       return { success: true, message: 'Vacancy deleted successfully' };
+  //     }
+      
+  //     return await response.json();
+  //   } catch (error) {
+  //     console.error('Error deleting vacancy:', error);
+  //     throw error;
+  //   }
+  // },
+
+  // Получить вакансию по ID
+  async getVacancyById(vacancyId) {
+    if (USE_MOCK_DATA) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            id: vacancyId,
+            title: 'Frontend Developer (Vue.js)',
+            level: 'middle',
+            description: 'Разработка пользовательских интерфейсов для HR-платформы',
+            requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
+            status: 'active',
+            created_at: '2024-01-15'
+          });
+        }, 1000);
+      });
+    }
+
+    try {
+      const tokens = authUtils.getTokens();
+      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching vacancy:', error);
+      throw error;
+    }
   }
 }
 
 // Вспомогательные функции для работы с аутентификацией
 export const authUtils = {
-  // Сохранение токенов
+  // Сохранение токенов в localStorage
   saveTokens(tokens) {
     if (tokens.access_token) {
-      localStorage.setItem('access_token', tokens.access_token);
+      localStorage.setItem('access_token', tokens.access_token)
     }
     if (tokens.refresh_token) {
-      localStorage.setItem('refresh_token', tokens.refresh_token);
+      localStorage.setItem('refresh_token', tokens.refresh_token)
     }
   },
 
-  // Получение токенов
+  // Получение токенов из localStorage
   getTokens() {
     return {
       access_token: localStorage.getItem('access_token'),
       refresh_token: localStorage.getItem('refresh_token')
-    };
+    }
   },
 
-  // Удаление токенов
+  // Удаление токенов (при выходе)
   clearTokens() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
   },
 
-  // Проверка авторизации
+  // Проверка, авторизован ли пользователь
   isAuthenticated() {
-    return !!localStorage.getItem('access_token');
+    return !!localStorage.getItem('access_token')
   },
 
-  // Получение заголовков с авторизацией
+  // Получить заголовки с авторизацией
   getAuthHeaders() {
     const tokens = this.getTokens();
     return {
       'Authorization': `Bearer ${tokens.access_token}`,
       'Content-Type': 'application/json',
-    };
+    }
   }
 }
