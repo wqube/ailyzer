@@ -2,10 +2,6 @@
   <div class="employer-dashboard">
     <div class="dashboard-header">
       <h1>Дашборд работодателя</h1>
-      <div class="user-info">
-        <span>Добро пожаловать!</span>
-        <button @click="handleLogout" class="btn btn-outline">Выйти</button>
-      </div>
     </div>
 
     <div class="dashboard-content">
@@ -45,8 +41,8 @@
         <div class="actions-grid">
           <div class="action-card" @click="navigateToVacancies">
             <div class="action-icon">➕</div>
-            <h3>Создать вакансию</h3>
-            <p>Добавьте новую вакансию для поиска кандидатов</p>
+            <h3>Список вакансий</h3>
+            <p>Посмотреть список текущих вакансий</p>
           </div>
 
           <div class="action-card" @click="navigateToCandidates">
@@ -81,13 +77,12 @@ export default {
     },
     
     navigateToVacancies() {
+      this.$router.push({ name: 'employer-vacancies' });
       // Здесь будет навигация к созданию вакансий
-      alert('Функционал создания вакансий будет реализован позже')
     },
     
     navigateToCandidates() {
       // Здесь будет навигация к кандидатам
-      alert('Функционал просмотра кандидатов будет реализован позже')
     }
   },
   
@@ -106,7 +101,9 @@ export default {
 <style scoped>
 .employer-dashboard {
   min-height: 80vh;
-  padding: 2rem 0;
+  padding: 2rem 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .dashboard-header {
@@ -223,10 +220,18 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .employer-dashboard {
+    padding: 1rem 0.5rem;
+  }
+  
   .dashboard-header {
     flex-direction: column;
     gap: 1rem;
     text-align: center;
+  }
+  
+  .welcome-section {
+    padding: 1.5rem;
   }
   
   .stats-grid {
@@ -235,6 +240,21 @@ export default {
   
   .actions-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .employer-dashboard {
+    padding: 1rem 0.25rem;
+  }
+  
+  .welcome-section {
+    padding: 1rem;
+  }
+  
+  .stat-card,
+  .action-card {
+    padding: 1rem;
   }
 }
 </style>

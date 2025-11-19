@@ -180,5 +180,83 @@ saveTokens(tokens) {
     // Проверка, авторизован ли пользователь
     isAuthenticated() {
         return !!localStorage.getItem('access_token')
+    },
+
+    /////////////////////
+    // Тут короче сомнительно, менять надо (настроить апи и посмотреть совпадают ли эндпоинты)
+    async getMyVacancies() {
+    if (USE_MOCK_DATA) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve([
+            {
+              id: 1,
+              title: 'Frontend Developer (Vue.js)',
+              level: 'middle',
+              description: 'Разработка пользовательских интерфейсов для HR-платформы',
+              requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
+              status: 'active',
+              created_at: '2024-01-15'
+            }
+          ]);
+        },  1000);
+      });
     }
+
+    const tokens = authUtils.getTokens();
+    const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/my`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Content-Type': 'application/json',
+      }
+    });
+  
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  
+    return await response.json();
+  },
+
+  async createVacancy(vacancyData) {
+    if (USE_MOCK_DATA) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            id: Date.now(),
+            ...vacancyData,
+            status: 'active',
+            created_at: new Date().toISOString()
+          });
+        }, 1000);
+      });
+    }
+
+  const tokens = authUtils.getTokens();
+  const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${tokens.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(vacancyData)
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return await response.json();
+  },
+
+  async updateVacancy(vacancyId, vacancyData) {
+    // Аналогично createVacancy, но метод PATCH
+    // Реализация для реального API
+  },
+
+  async deleteVacancy(vacancyId) {
+  // Реализация для реального API
+  }
+  ////////////////////////////////
 }

@@ -58,10 +58,17 @@
 </template>
 
 <script>
+import { useAuthStore } from '@/stores/auth';
 import { api, authUtils } from '@/utils/api'
 
 export default {
   name: 'EmployerLoginView',
+
+  setup() {
+    const authStore = useAuthStore();
+    return { authStore };
+  },
+
   data() {
     return {
       loginData: {
@@ -82,6 +89,9 @@ export default {
         })
         
         authUtils.saveTokens(result)
+
+        // Меняем состояние входа пользователя
+        this.authStore.setAuthenticated(true);
         
         // Перенаправляем в дашборд
         this.$router.push({ name: 'employer-dashboard' })
@@ -95,7 +105,7 @@ export default {
   },
   mounted() {
     // Если пользователь уже авторизован, перенаправляем в дашборд
-    if (authUtils.isAuthenticated()) {
+    if (this.authStore.isAuthenticated) {
       this.$router.push({ name: 'employer-dashboard' })
     }
   }
