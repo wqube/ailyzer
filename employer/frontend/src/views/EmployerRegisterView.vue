@@ -132,10 +132,17 @@
 </template>
 
 <script>
-import { api } from '@/utils/api'
+import { useAuthStore } from '@/stores/auth';
+import { api, authUtils } from '@/utils/api'
 
 export default {
   name: 'EmployerRegisterView',
+
+  setup() {
+    const authStore = useAuthStore();
+    return { authStore };
+  },
+
   data() {
     return {
       registerData: {
@@ -172,15 +179,32 @@ export default {
           email: this.registerData.email,
           password: this.registerData.password
         })
-        
-        alert('Регистрация успешна! Теперь вы можете войти в систему.')
-        this.$router.push({ name: 'employer-login' })
+
+        // ИСПРАВЛЕНО: Сохраняем токены после успешной регистрации
+        if (result.access_token && result.refresh_token) {
+          authUtils.saveTokens(result);
+          this.authStore.setAuthenticated(true);
+          
+          // Перенаправляем сразу в дашборд после успешной регистрации
+          this.$router.push({ name: 'employer-dashboard' });
+        } else {
+          // Если токены не пришли, просим пользователя войти
+          alert('Регистрация успешна! Теперь вы можете войти в систему.');
+          this.$router.push({ name: 'employer-login' });
+        }
         
       } catch (error) {
         alert(error.message)
       } finally {
         this.loading = false
       }
+    }
+  },
+
+  mounted() {
+    // ДОБАВЛЕНО: Если пользователь уже авторизован, перенаправляем в дашборд
+    if (this.authStore.isAuthenticated) {
+      this.$router.push({ name: 'employer-dashboard' });
     }
   }
 }

@@ -2,10 +2,6 @@
   <div class="employer-dashboard">
     <div class="dashboard-header">
       <h1>Дашборд работодателя</h1>
-      <div class="user-info">
-        <span>Добро пожаловать!</span>
-        <button @click="handleLogout" class="btn btn-outline">Выйти</button>
-      </div>
     </div>
 
     <div class="dashboard-content">
@@ -45,8 +41,8 @@
         <div class="actions-grid">
           <div class="action-card" @click="navigateToVacancies">
             <div class="action-icon">➕</div>
-            <h3>Создать вакансию</h3>
-            <p>Добавьте новую вакансию для поиска кандидатов</p>
+            <h3>Список вакансий</h3>
+            <p>Посмотреть список текущих вакансий</p>
           </div>
 
           <div class="action-card" @click="navigateToCandidates">
@@ -81,8 +77,9 @@ export default {
     },
     
     navigateToVacancies() {
+      this.$router.push({ name: 'employer-vacancies' });
       // Здесь будет навигация к созданию вакансий
-      alert('Функционал создания вакансий будет реализован позже')
+      // alert('Функционал создания вакансий будет реализован позже')
     },
     
     navigateToCandidates() {

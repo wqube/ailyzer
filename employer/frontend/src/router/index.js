@@ -4,6 +4,7 @@ import MainPageView from '@/views/MainPageView.vue'
 import EmployerLoginView from '@/views/EmployerLoginView.vue'
 import EmployerRegisterView from '@/views/EmployerRegisterView.vue'
 import EmployerDashboardView from '@/views/EmployerDashboardView.vue'
+import VacanciesView from '@/views/VacanciesView.vue'
 
 // Guard для защиты маршрутов, требующих аутентификации
 const requireAuth = (to, from, next) => {
@@ -56,6 +57,16 @@ const routes = [
     meta: { title: 'Дашборд работодателя', requiresAuth: true },
     beforeEnter: requireAuth
   },
+
+  //Для вакансий
+  {
+  path: '/employer/vacancies',
+  name: 'employer-vacancies',
+  component: VacanciesView,
+  meta: { title: 'Мои вакансии', requiresAuth: true },
+  beforeEnter: requireAuth
+  },
+  //////////////////////
   
   // Редирект с корня на логин работодателя
   {

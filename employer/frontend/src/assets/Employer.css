@@ -86,6 +86,11 @@ body {
     font-weight: 700;
 }
 
+.logo h1:hover{
+    cursor: pointer;
+    color: #5e4080;
+}
+
 .header-actions {
     display: flex;
     align-items: center;
