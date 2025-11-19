@@ -5,7 +5,7 @@ import datetime
 from datetime import datetime
 from typing import List, Optional
 
-from db.base import Base
+from .base import Base
 
 from sqlalchemy import (
     BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text

@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
-from db.models.models import User, Role
-from db.session import db_helper
+from db_old.models.models import User, Role
+from db_old.session import db_helper
 from schemas.user import UserCreate, UserRead
 
 router = APIRouter(prefix="/users", tags=["Users"])

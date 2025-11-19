@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from jwt.exceptions import InvalidTokenError
 
-from db.models.models import User, Role, Token
-from db.session import db_helper
+from db_old.models.models import User, Role, Token
+from db_old.session import db_helper
 from schemas.auth import UserRegister, UserLogin, TokenPair, TokenRefresh
 from auth.utils import hash_password, validate_password, encode_jwt, decode_jwt
 from core.config import settings

@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
-from db.models.models import Vacancy, User
-from db.session import db_helper
+from db_old.models.models import Vacancy, User
+from db_old.session import db_helper
 from schemas.vacancy import VacancyCreate, VacancyRead
 from api.dependencies.auth import get_current_employer
 

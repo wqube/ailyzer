@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from collections.abc import AsyncGenerator
 
 
-from core.config import settings
+from ..core.config import settings
 
 
 class DatabaseHelper:

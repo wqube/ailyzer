@@ -5,6 +5,6 @@ __all__ = (
     "session"
 )
 
-from db.base import Base
+from .base import Base
 # from .models.vacancies import Vacancies 
 from .session import DatabaseHelper

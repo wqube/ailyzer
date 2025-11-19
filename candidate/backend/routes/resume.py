@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from core.utils import allowed_file
-from services.resume_service import process_resume_file
+from ..core.utils import allowed_file
+from ..services.resume_service import process_resume_file
 
 router = APIRouter()
 
