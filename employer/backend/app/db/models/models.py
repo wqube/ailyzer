@@ -144,6 +144,29 @@ class UserSkill(Base):
 
 # ---------- ВАКАНСИИ, РЕЗЮМЕ ----------
 
+# class Vacancy(Base):
+#     __tablename__ = "vacancies"
+#     __table_args__ = (
+#         CheckConstraint("status IN ('active','closed')", name="vacancies_status_check"),
+#         Index("idx_vacancies_hr", "hr_id"),
+#     )
+
+#     vacancy_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)  # 👈 ДОБАВИТЬ AUTOINCREMENT
+#     hr_id: Mapped[int] = mapped_column(
+#         ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
+#     )
+#     title: Mapped[str] = mapped_column(Text, nullable=False)
+#     description: Mapped[str] = mapped_column(Text, nullable=False)  # 👈 УБРАТЬ Optional
+#     requirements: Mapped[str] = mapped_column(Text, nullable=False)  # 👈 УБРАТЬ Optional
+#     level: Mapped[str] = mapped_column(Text, nullable=False)  # 👈 УБРАТЬ Optional
+#     created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+#     status: Mapped[str] = mapped_column(Text, server_default=text("'active'"), nullable=False)
+
+#     hr: Mapped["User"] = relationship(back_populates="hr_vacancies")
+#     resumes: Mapped[List["Resume"]] = relationship(back_populates="vacancy")
+#     interviews: Mapped[List["Interview"]] = relationship(back_populates="vacancy")
+#     questions: Mapped[List["Question"]] = relationship(back_populates="vacancy")
+
 class Vacancy(Base):
     __tablename__ = "vacancies"
     __table_args__ = (

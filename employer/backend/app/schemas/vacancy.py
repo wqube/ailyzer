@@ -41,3 +41,34 @@ class VacancyRead(VacancyBase):
 
     class Config:
         from_attributes = True  # Pydantic v2 (было orm_mode в v1)
+
+# schemas/vacancy.py
+# from pydantic import BaseModel, validator
+# from datetime import datetime
+# from typing import Optional
+
+# class VacancyCreate(BaseModel):
+#     title: str
+#     description: str
+#     requirements: str
+#     level: str
+    
+#     @validator('level')
+#     def validate_level(cls, v):
+#         allowed_levels = ['junior', 'middle', 'senior']
+#         if v not in allowed_levels:
+#             raise ValueError(f'Level must be one of: {", ".join(allowed_levels)}')
+#         return v
+
+# class VacancyRead(BaseModel):
+#     vacancy_id: int
+#     title: str
+#     description: str
+#     requirements: str
+#     level: str
+#     status: str
+#     hr_id: int
+#     created_at: datetime
+    
+#     class Config:
+#         from_attributes = True

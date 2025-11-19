@@ -56,10 +56,9 @@ async def get_my_vacancies(
 ):
     """
     Получить все вакансии текущего работодателя.
-    
-    - Требует авторизации
-    - Возвращает только вакансии, созданные текущим пользователем
     """
+    
+    print(f"Getting vacancies for employer: {current_employer.user_id}")  # 👈 ДЛЯ ОТЛАДКИ
     
     result = await session.execute(
         select(Vacancy)
@@ -68,6 +67,8 @@ async def get_my_vacancies(
     )
     
     vacancies = result.scalars().all()
+    print(f"Found {len(vacancies)} vacancies")  # 👈 ДЛЯ ОТЛАДКИ
+    
     return vacancies
 
 

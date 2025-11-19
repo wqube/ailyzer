@@ -225,24 +225,35 @@ export const api = {
     return await response.json();
   },
 
-  async createVacancy(vacancyData) {
-    if (USE_MOCK_DATA) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          const newVacancy = {
-            vacancy_id: Date.now(),
-            ...vacancyData,
-            status: 'active',
-            hr_id: 1,
-            created_at: new Date().toISOString()
-          };
-          MOCK_VACANCIES.push(newVacancy);
-          resolve(newVacancy);
-        }, 1000);
-      });
-    }
+async createVacancy(vacancyData) {
+  if (USE_MOCK_DATA) {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Получаем ID текущего пользователя из токена
+        const tokens = authUtils.getTokens();
+        const currentUserId = this.getUserIdFromToken(tokens.access_token) || 1;
+        
+        const newVacancy = {
+          vacancy_id: Date.now(),
+          title: vacancyData.title,
+          description: vacancyData.description,
+          requirements: vacancyData.requirements,
+          level: vacancyData.level,
+          status: 'active',
+          hr_id: currentUserId, // 👈 ИСПОЛЬЗУЕМ ID ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
+          created_at: new Date().toISOString()
+        };
+        MOCK_VACANCIES.push(newVacancy);
+        resolve(newVacancy);
+      }, 1000);
+    });
+  }
 
-    const tokens = authUtils.getTokens();
+  const tokens = authUtils.getTokens();
+  console.log('Creating vacancy with data:', vacancyData);
+  console.log('Using token:', tokens.access_token);
+
+  try {
     const response = await fetch(`${API_BASE_URL}/vacancies/`, {
       method: 'POST',
       headers: {
@@ -252,13 +263,36 @@ export const api = {
       body: JSON.stringify(vacancyData)
     });
     
+    console.log('Response status:', response.status);
+    
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('Error response:', errorData);
       throw new Error(errorData.detail || `Failed to create vacancy: ${response.status}`);
     }
     
-    return await response.json();
-  },
+    const result = await response.json();
+    console.log('Vacancy created:', result);
+    return result;
+    
+  } catch (error) {
+    console.error('Network error:', error);
+    throw error;
+  }
+},
+
+// Добавьте эту вспомогательную функцию
+getUserIdFromToken(token) {
+  if (!token) return null;
+  try {
+    // Простой парсинг JWT токена (если это JWT)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.user_id || payload.sub;
+  } catch (e) {
+    console.warn('Cannot parse token:', e);
+    return null;
+  }
+},
 
   async updateVacancy(vacancyId, vacancyData) {
     if (USE_MOCK_DATA) {

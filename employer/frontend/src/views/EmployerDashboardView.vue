@@ -142,6 +142,7 @@ export default {
     return {
       loading: false,
       error: null,
+      vacancies: [], // 👈 ДОБАВИТЬ ЭТО
       stats: {
         totalVacancies: 0,
         activeVacancies: 0,
@@ -152,6 +153,34 @@ export default {
     }
   },
   methods: {
+      async loadDashboardData() {
+      this.loading = true
+      this.error = null
+      
+      try {
+        // Загружаем вакансии для статистики
+        this.vacancies = await api.getMyVacancies() // 👈 СОХРАНЯЕМ ВАКАНСИИ
+        
+        // Обновляем статистику
+        this.stats.totalVacancies = this.vacancies.length
+        this.stats.activeVacancies = this.vacancies.filter(v => v.status === 'active').length
+        
+        // TODO: Загрузить реальные данные о кандидатах и откликах
+        // Временные моковые данные
+        this.stats.totalCandidates = 12
+        this.stats.newApplications = 3
+        
+        // Генерируем последние активности
+        this.generateRecentActivities(this.vacancies) // 👈 ПЕРЕДАЕМ СОХРАНЕННЫЕ ВАКАНСИИ
+        
+      } catch (error) {
+        console.error('Error loading dashboard data:', error)
+        this.error = 'Не удалось загрузить данные дашборда. Проверьте подключение к интернету.'
+      } finally {
+        this.loading = false
+      }
+    },
+
     async handleLogout() {
       try {
         const tokens = authUtils.getTokens()
@@ -180,34 +209,6 @@ export default {
     
     navigateToAnalytics() {
       this.$router.push({ name: 'analytics' })
-    },
-
-    async loadDashboardData() {
-      this.loading = true
-      this.error = null
-      
-      try {
-        // Загружаем вакансии для статистики
-        const vacancies = await api.getMyVacancies()
-        
-        // Обновляем статистику
-        this.stats.totalVacancies = vacancies.length
-        this.stats.activeVacancies = vacancies.filter(v => v.status === 'active').length
-        
-        // TODO: Загрузить реальные данные о кандидатах и откликах
-        // Временные моковые данные
-        this.stats.totalCandidates = 12
-        this.stats.newApplications = 3
-        
-        // Генерируем последние активности
-        this.generateRecentActivities(vacancies)
-        
-      } catch (error) {
-        console.error('Error loading dashboard data:', error)
-        this.error = 'Не удалось загрузить данные дашборда. Проверьте подключение к интернету.'
-      } finally {
-        this.loading = false
-      }
     },
 
     generateRecentActivities(vacancies) {
