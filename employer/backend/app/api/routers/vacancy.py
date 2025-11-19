@@ -161,6 +161,11 @@ async def update_vacancy(
     vacancy.description = vacancy_update.description
     vacancy.requirements = vacancy_update.requirements
     vacancy.level = vacancy_update.level
+
+    # Обновляем только переданные поля
+    # update_data = vacancy_update.model_dump(exclude_unset=True)
+    # for field, value in update_data.items():
+    #     setattr(vacancy, field, value)
     
     await session.commit()
     await session.refresh(vacancy)

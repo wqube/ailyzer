@@ -33,7 +33,8 @@ export default {
                 // 'mainpage': '/employer/dashboard',
                 'mainpage': '/',
                 'login': '/employer/login',
-                'registration': '/employer/register'
+                'registration': '/employer/register',
+                'dashboard': '/employer/dashboard'
             };
             
             if (routes[page]) {

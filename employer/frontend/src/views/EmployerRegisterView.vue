@@ -147,15 +147,15 @@ export default {
     return {
       registerData: {
         email: '',
-        lastName: '',
-        firstName: '',
-        middleName: '',
-        phone: '',
-        position: '',
-        company: '',
-        city: '',
+        // lastName: '',
+        // firstName: '',
+        // middleName: '',
+        // phone: '',
+        // position: '',
+        // company: '',
+        // city: '',
         password: '',
-        confirmPassword: ''
+        // confirmPassword: ''
       },
       loading: false
     }
