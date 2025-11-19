@@ -92,12 +92,34 @@ export default {
         },
 
         async handleLogout() {
+            // Показываем диалог подтверждения
+            const isConfirmed = await this.showLogoutConfirmation();
+            
+            if (!isConfirmed) {
+                return; // Пользователь отменил выход
+            }
+            
             await this.authStore.logout();
             
             // Переходим на главную если мы на dashboard
             if (this.currentPage === 'dashboard') {
                 this.navigateTo('mainpage');
             }
+        },
+
+        showLogoutConfirmation() {
+            return new Promise((resolve) => {
+                // Используем браузерный confirm
+                const userConfirmed = window.confirm('Вы уверены, что хотите выйти?');
+                resolve(userConfirmed);
+                
+                // Альтернатива: можно использовать кастомное модальное окно
+                // this.$emit('show-confirmation', {
+                //     message: 'Вы уверены, что хотите выйти?',
+                //     onConfirm: () => resolve(true),
+                //     onCancel: () => resolve(false)
+                // });
+            });
         }
     },
 
