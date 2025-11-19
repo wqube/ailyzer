@@ -52,6 +52,26 @@
           </div>
         </div>
       </div>
+
+      <div class="recent-activities" v-if="recentActivities.length > 0">
+        <h2>Последние активности</h2>
+        <div class="activities-list">
+          <div 
+            v-for="activity in recentActivities" 
+            :key="activity.id"
+            class="activity-item"
+          >
+            <div class="activity-icon" :class="activity.type">
+              {{ getActivityIcon(activity.type) }}
+            </div>
+            <div class="activity-content">
+              <p class="activity-text">{{ activity.text }}</p>
+              <span class="activity-time">{{ activity.time }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -61,6 +81,23 @@ import { api, authUtils } from '@/utils/api'
 
 export default {
   name: 'EmployerDashboardView',
+
+  //Данные для вакансий
+  data() {
+    return {
+      loading: false,
+      error: null,
+      vacancies: [], // 👈 ДОБАВИТЬ ЭТО
+      stats: {
+        totalVacancies: 0,
+        activeVacancies: 0,
+        totalCandidates: 0,
+        newApplications: 0
+      },
+      recentActivities: []
+    }
+  },
+
   methods: {
     async handleLogout() {
       try {
@@ -78,7 +115,7 @@ export default {
     
     navigateToVacancies() {
       this.$router.push({ name: 'employer-vacancies' });
-      // Здесь будет навигация к созданию вакансий
+      
     },
     
     navigateToCandidates() {
@@ -86,15 +123,102 @@ export default {
     }
   },
   
-  mounted() {
+  async mounted() {
     // Проверяем авторизацию
     if (!authUtils.isAuthenticated()) {
       this.$router.push({ name: 'employer-login' })
     }
     
-    // Здесь можно загружать данные дашборда
-    // await this.loadDashboardData()
-  }
+    // Загружаем данные дашборда
+    await this.loadDashboardData()
+  },
+
+  async loadDashboardData() {
+      this.loading = true
+      this.error = null
+      
+      try {
+        // Загружаем вакансии для статистики
+        this.vacancies = await api.getMyVacancies() // 👈 СОХРАНЯЕМ ВАКАНСИИ
+        
+        // Обновляем статистику
+        this.stats.totalVacancies = this.vacancies.length
+        this.stats.activeVacancies = this.vacancies.filter(v => v.status === 'active').length
+        
+        // TODO: Загрузить реальные данные о кандидатах и откликах
+        // Временные моковые данные
+        this.stats.totalCandidates = 12
+        this.stats.newApplications = 3
+        
+        // Генерируем последние активности
+        this.generateRecentActivities(this.vacancies) // 👈 ПЕРЕДАЕМ СОХРАНЕННЫЕ ВАКАНСИИ
+        
+      } catch (error) {
+        console.error('Error loading dashboard data:', error)
+        this.error = 'Не удалось загрузить данные дашборда. Проверьте подключение к интернету.'
+      } finally {
+        this.loading = false
+      }
+    },
+
+    generateRecentActivities(vacancies) {
+      const activities = []
+      
+      // Добавляем активности на основе вакансий
+      vacancies.slice(0, 3).forEach(vacancy => {
+        activities.push({
+          id: `vacancy-${vacancy.vacancy_id}`,
+          type: 'vacancy',
+          text: `Создана вакансия "${vacancy.title}"`,
+          time: this.formatTime(vacancy.created_at)
+        })
+      })
+      
+      // Добавляем моковые активности
+      activities.push(
+        {
+          id: 'candidate-1',
+          type: 'candidate',
+          text: 'Новый отклик на вакансию "Frontend Developer"',
+          time: '2 часа назад'
+        },
+        {
+          id: 'interview-1',
+          type: 'interview',
+          text: 'Запланировано собеседование с Иваном Петровым',
+          time: 'Вчера'
+        }
+      )
+      
+      this.recentActivities = activities
+    },
+
+    formatTime(dateString) {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffMs = now - date
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      
+      if (diffDays === 0) {
+        return 'Сегодня'
+      } else if (diffDays === 1) {
+        return 'Вчера'
+      } else if (diffDays < 7) {
+        return `${diffDays} дня назад`
+      } else {
+        return date.toLocaleDateString('ru-RU')
+      }
+    },
+
+    getActivityIcon(type) {
+      const icons = {
+        vacancy: '📋',
+        candidate: '👤',
+        interview: '🎯',
+        default: '📝'
+      }
+      return icons[type] || icons.default
+    }
 }
 </script>
 
@@ -217,6 +341,54 @@ export default {
   margin: 0;
   color: #666;
   font-size: 0.9rem;
+}
+
+.recent-activities {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.recent-activities h2 {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.activity-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.activity-content {
+  flex: 1;
+}
+
+.activity-text {
+  margin: 0 0 0.25rem 0;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.activity-time {
+  color: #666;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 768px) {
