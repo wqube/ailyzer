@@ -6,9 +6,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from jwt.exceptions import InvalidTokenError
 
-from db.models.models import User
-from db.session import db_helper
-from auth.utils import decode_jwt
+
+from ...auth.utils import decode_jwt
+
+from shared.db.session import db_helper
+from shared.db.models import User
 
 
 # Схема для извлечения токена из заголовка Authorization

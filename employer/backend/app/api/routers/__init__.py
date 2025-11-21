@@ -4,10 +4,15 @@
 from fastapi import APIRouter
 
 # Импортируем роутеры
-from api.routers.user import router as user_router
-from api.routers.vacancy import router as vacancy_router
-from api.routers.role import router as role_router
-from api.routers.auth import router as auth_router  # 👈 НОВЫЙ роутер
+# from .app.api.routers.user import router as user_router
+# from .api.routers.vacancy import router as vacancy_router
+# from .api.routers.role import router as role_router
+# from .api.routers.auth import router as auth_router
+
+from .user import router as user_router
+from .vacancy import router as vacancy_router
+from .role import router as role_router
+from .auth import router as auth_router
 
 # Демо-роутеры (можно оставить для тестирования)
 # from api.routers.demo_auth.views import router as demo_auth_router
