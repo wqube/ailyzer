@@ -102,10 +102,11 @@ async def get_all_vacancies(
     return vacancies
 
 
-# ============ ПОЛУЧИТЬ КОНКРЕТНУЮ ВАКАНСИЮ ============
+# ============ ПОЛУЧИТЬ КОНКРЕТНУЮ АКТИВНУЮ ВАКАНСИЮ ============
 
+# @router.get("public/{vacancy_id}", response_model=VacancyRead)
 @router.get("/{vacancy_id}", response_model=VacancyRead)
-async def get_vacancy(
+async def get_active_vacancy(
     vacancy_id: int,
     session: AsyncSession = Depends(db_helper.get_db),
 ):
@@ -121,6 +122,13 @@ async def get_vacancy(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vacancy not found"
+        )
+    
+    # Проверяем, что вакансия активна
+    if vacancy.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vacancy not available"
         )
     
     return vacancy
@@ -207,4 +215,4 @@ async def delete_vacancy(
     # await session.delete(vacancy)
     # await session.commit()
     
-    return None  # 204 No Content
+    return None  # 204 No Content\

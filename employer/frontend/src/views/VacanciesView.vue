@@ -36,6 +36,23 @@
               <p><strong>Описание:</strong> {{ vacancy.description }}</p>
               <p><strong>Требования:</strong> {{ vacancy.requirements }}</p>
               <p><strong>Создана:</strong> {{ formatDate(vacancy.created_at) }}</p>
+              <p><strong>Ссылка для кандидатов:</strong></p>
+
+              <div class="vacancy-link">
+                <input 
+                  :value="getVacancyPublicLink(vacancy)" 
+                  readonly 
+                  class="link-input"
+                  ref="linkInput"
+                >
+                <button 
+                  @click="copyVacancyLink(vacancy)" 
+                  class="btn btn-outline btn-small"
+                  :class="{ 'copied': copiedLinkId === (vacancy.vacancy_id || vacancy.id) }"
+                >
+                  {{ copiedLinkId === (vacancy.vacancy_id || vacancy.id) ? 'Скопировано!' : 'Копировать' }}
+                </button>
+              </div>
             </div>
             
             <div class="vacancy-actions">
@@ -175,6 +192,7 @@ export default {
       formLoading: false,
       actionLoading: false,
       errorMessage: '',
+      copiedLinkId: null, // Для отслеживания скопированной ссылки
       editingVacancy: null,
       vacancyForm: {
         title: '',
@@ -297,6 +315,33 @@ export default {
         this.actionLoading = false
       }
     },
+    
+    // Копирование ссылки в буфер обмена
+    async copyVacancyLink(vacancy) {
+      const link = this.getVacancyPublicLink(vacancy)
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      
+      try {
+        await navigator.clipboard.writeText(link)
+        this.copiedLinkId = vacancyId
+        
+        // Сбрасываем статус "Скопировано" через 2 секунды
+        setTimeout(() => {
+          this.copiedLinkId = null
+        }, 2000)
+        
+      } catch (err) {
+        // Fallback для старых браузеров
+        const input = this.$refs.linkInput[this.vacancies.indexOf(vacancy)]
+        input.select()
+        document.execCommand('copy')
+        this.copiedLinkId = vacancyId
+        
+        setTimeout(() => {
+          this.copiedLinkId = null
+        }, 2000)
+      }
+    },
 
     // Закрытие модального окна
     closeModal() {
@@ -340,7 +385,7 @@ export default {
       return date.toLocaleDateString('ru-RU')
     },
 
-    // Вспомогательные методы
+    //////////////////////// Вспомогательные методы ////////////////////////
     getStatusText(status) {
       const statusMap = {
         active: 'Активна',
@@ -358,8 +403,23 @@ export default {
         lead: 'Lead'
       }
       return levelMap[level] || level
+    },
+
+    //////////////////////// Генерация публичной ссылки на вакансию ////////////////////////
+    getVacancyPublicLink(vacancy) {
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      return `${window.location.origin}/vacancy/${vacancyId}`
+    },
+
+    // Показ QR-кода для ссылки (опционально)
+    showQRCode(vacancy) {
+      const link = this.getVacancyPublicLink(vacancy)
+      // Здесь можно интегрировать библиотеку для генерации QR-кода
+      console.log('QR Code for:', link)
+      // Или открыть модальное окно с QR-кодом
     }
   },
+
   mounted() {
     // Проверяем авторизацию
     if (!authUtils.isAuthenticated()) {
@@ -662,6 +722,40 @@ export default {
     gap: 0.5rem;
     text-align: center;
     }
+  }
+}
+
+.vacancy-link {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.link-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f9f9f9;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.btn-small {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+}
+
+.btn.copied {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .vacancy-link {
+    flex-direction: column;
   }
 }
 </style>
