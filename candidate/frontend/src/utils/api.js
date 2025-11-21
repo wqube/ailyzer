@@ -62,7 +62,25 @@ export const api = {
       console.error('Send answer error:', error)
       throw new Error('Не удалось отправить ответ. Проверьте подключение к серверу.')
     }
-  }
+  },
+  async createCandidate(formData) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/candidates/create`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Create candidate error:', error)
+      throw new Error('Не удалось сохранить кандидата. Проверьте подключение к серверу.')
+    }
+  },
 }
 
 export const handleApiError = (error) => {

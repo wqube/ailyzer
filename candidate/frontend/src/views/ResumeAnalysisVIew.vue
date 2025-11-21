@@ -266,6 +266,24 @@ const analyzeResume = async () => {
     // 2) Сохраняем результат анализа
     appStore.setResumeAnalysis(result)
 
+// ============ СОХРАНЯЕМ КАНДИДАТА В БД ============
+
+const candidateData = new FormData()
+candidateData.append("email", userData.value.email)
+candidateData.append("password_hash", "TEMP_PASSWORD_HASH")
+candidateData.append("parsed_text", result.resume_text || result.details || "")
+candidateData.append("metadata_json", JSON.stringify(result))
+candidateData.append("resume", selectedFile.value)
+
+try {
+  const candidateResponse = await api.createCandidate(candidateData)
+  console.log("Кандидат сохранён:", candidateResponse)
+} catch (e) {
+  console.error("Ошибка сохранения кандидата:", e)
+}
+
+    
+
     // 3) Формируем interviewData — БЕЗ ЭТОГО InterviewView НЕ ЗАПУСКАЕТСЯ
     appStore.prepareInterviewData()
 

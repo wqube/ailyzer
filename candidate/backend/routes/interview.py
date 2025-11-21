@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from services.interview_service import InterviewState, start_interview_with_resume, evaluate_answer, create_session, get_session, COUNT_QUESTIONS, PASSING_SCORE_INTERVIEW
+from ..services.interview_service import InterviewState, start_interview_with_resume, evaluate_answer, create_session, get_session, COUNT_QUESTIONS, PASSING_SCORE_INTERVIEW
 
 router = APIRouter()
 

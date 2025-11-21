@@ -4,8 +4,8 @@ import asyncio
 from typing import Dict, Any
 from dataclasses import dataclass, field
 
-from core.config import client, COUNT_QUESTIONS, PASSING_SCORE_INTERVIEW
-from core.utils import speak_text_local
+from ..core.config import client, COUNT_QUESTIONS, PASSING_SCORE_INTERVIEW
+from ..core.utils import speak_text_local
 
 
 @dataclass
