@@ -5,9 +5,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
+<<<<<<< Updated upstream
 from db.models.models import User, Role
 from db.session import db_helper
 from schemas.user import UserCreate, UserRead
+=======
+
+from shared.db.session import db_helper
+# from shared.db.base import Base
+from shared.db.models import User, Role, Resume
+
+
+# from db_old.models.models import User, Role
+# from db_old.session import db_helper
+
+from employer.backend.app.schemas.user import UserCreate, UserRead
+>>>>>>> Stashed changes
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

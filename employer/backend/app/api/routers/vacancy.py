@@ -6,10 +6,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
+<<<<<<< Updated upstream
 from db.models.models import Vacancy, User
 from db.session import db_helper
 from schemas.vacancy import VacancyCreate, VacancyRead
 from api.dependencies.auth import get_current_employer
+=======
+# from db_old.models.models import Vacancy, User
+# from db_old.session import db_helper
+
+from shared.db.session import db_helper
+from shared.db.base import Base
+from shared.db.models import User, Vacancy
+
+
+
+from employer.backend.app.schemas.vacancy import VacancyCreate, VacancyRead
+from employer.backend.app.api.dependencies.auth import get_current_employer
+>>>>>>> Stashed changes
 
 router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
 

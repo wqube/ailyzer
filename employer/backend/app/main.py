@@ -2,11 +2,18 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import uvicorn
 
+<<<<<<< Updated upstream
 from db import Base
 from db.session import db_helper
+=======
+from shared.db.session import db_helper
+from shared.db.base import Base
+# from shared.db.models import User, Role, Resume
+>>>>>>> Stashed changes
 
-from api.routers import router as router_v1
-from core.config import settings
+# Исправляем импорты для api
+from employer.backend.app.api.routers import router as router_v1
+from employer.backend.app.core.config import settings
 
 
 @asynccontextmanager

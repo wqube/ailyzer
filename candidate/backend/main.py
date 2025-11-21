@@ -7,6 +7,11 @@ from pathlib import Path
 import uvicorn
 
 app = FastAPI(title="AIlyzer API")
+<<<<<<< Updated upstream
+=======
+BASE_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(BASE_DIR))
+>>>>>>> Stashed changes
 
 # CORS
 app.add_middleware(
