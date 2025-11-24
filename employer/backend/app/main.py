@@ -3,11 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 
-from db import Base
-from db.session import db_helper
+from pathlib import Path
+from shared.db import Base
+from shared.db.session import db_helper
+import sys
 
-from api.routers import router as router_v1
-from core.config import settings
+from .api.routers import router as router_v1
+from .core.config import settings
+
+BASE_PATH = "employer.backend.app"
 
 
 @asynccontextmanager
@@ -19,6 +23,8 @@ async def lifespan(app: FastAPI):
 
     yield # Тут жизненный цикл приложения
 
+BASE_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(BASE_DIR))
 app = FastAPI(lifespan=lifespan)
 
 # Настройка CORS middleware

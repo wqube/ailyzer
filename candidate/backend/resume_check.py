@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from sentence_transformers import SentenceTransformer, util
-from into_text import extract_text_from_file
+from .into_text import extract_text_from_file
 
 # модель может загружаться при импорте
 model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")

@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
-from db.models.models import Vacancy, User
-from db.session import db_helper
-from schemas.vacancy import VacancyCreate, VacancyRead
-from api.dependencies.auth import get_current_employer
+from shared.db.session import db_helper
+from shared.db.models import User, Vacancy, User
+
+from ...schemas.vacancy import VacancyCreate, VacancyRead
+from ...api.dependencies.auth import get_current_employer
 
 router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
 
@@ -101,10 +102,11 @@ async def get_all_vacancies(
     return vacancies
 
 
-# ============ ПОЛУЧИТЬ КОНКРЕТНУЮ ВАКАНСИЮ ============
+# ============ ПОЛУЧИТЬ КОНКРЕТНУЮ АКТИВНУЮ ВАКАНСИЮ ============
 
+# @router.get("public/{vacancy_id}", response_model=VacancyRead)
 @router.get("/{vacancy_id}", response_model=VacancyRead)
-async def get_vacancy(
+async def get_active_vacancy(
     vacancy_id: int,
     session: AsyncSession = Depends(db_helper.get_db),
 ):
@@ -120,6 +122,13 @@ async def get_vacancy(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vacancy not found"
+        )
+    
+    # Проверяем, что вакансия активна
+    if vacancy.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vacancy not available"
         )
     
     return vacancy
@@ -206,4 +215,4 @@ async def delete_vacancy(
     # await session.delete(vacancy)
     # await session.commit()
     
-    return None  # 204 No Content
+    return None  # 204 No Content\

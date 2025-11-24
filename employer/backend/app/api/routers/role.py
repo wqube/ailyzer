@@ -3,9 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
-from db.models.models import User, Role
-from db.session import db_helper
-from schemas.role import RoleCreate, RoleRead
+from shared.db.session import db_helper
+from shared.db.models import User, Role
+
+from ...schemas.role import RoleCreate, RoleRead
 
 router = APIRouter(prefix="/role", tags=["Role"])
 

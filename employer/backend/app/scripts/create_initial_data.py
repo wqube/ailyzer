@@ -8,8 +8,9 @@
 
 import asyncio
 from sqlalchemy import select
-from db.session import db_helper
-from db.models.models import Role
+
+from shared.db.session import db_helper
+from shared.db.models import Role
 
 
 async def create_roles():

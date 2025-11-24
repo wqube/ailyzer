@@ -11,11 +11,15 @@
 
     <div class="vacancies-content">
       <div class="container">
-        <!-- Список вакансий -->
-        <div class="vacancies-list">
+        <div v-if="loading && vacancies.length === 0" class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Загрузка вакансий...</p>
+        </div>
+
+        <div class="vacancies-list" v-else-if="vacancies.length > 0">
           <div 
             v-for="vacancy in vacancies" 
-            :key="vacancy.id" 
+            :key="vacancy.vacancy_id || vacancy.id" 
             class="vacancy-card"
           >
             <div class="vacancy-header">
@@ -29,27 +33,61 @@
               <p><strong>Уровень:</strong> {{ getLevelText(vacancy.level) }}</p>
               <p><strong>Описание:</strong> {{ vacancy.description }}</p>
               <p><strong>Требования:</strong> {{ vacancy.requirements }}</p>
+              <p><strong>Создана:</strong> {{ formatDate(vacancy.created_at) }}</p>
+              <p><strong>Ссылка для кандидатов:</strong></p>
+
+              <div class="vacancy-link">
+                <input 
+                  :value="getVacancyPublicLink(vacancy)" 
+                  readonly 
+                  class="link-input"
+                  ref="linkInput"
+                >
+                <button 
+                  @click="copyVacancyLink(vacancy)" 
+                  class="btn btn-outline btn-small"
+                  :class="{ 'copied': copiedLinkId === (vacancy.vacancy_id || vacancy.id) }"
+                >
+                  {{ copiedLinkId === (vacancy.vacancy_id || vacancy.id) ? 'Скопировано!' : 'Копировать' }}
+                </button>
+              </div>
             </div>
             
             <div class="vacancy-actions">
               <button 
+                @click="viewCandidates(vacancy)" 
+                class="btn btn-outline"
+                :disabled="actionLoading"
+              >
+                Посмотреть кандидатов
+              </button>
+              <button 
                 @click="editVacancy(vacancy)" 
                 class="btn btn-outline"
+                :disabled="actionLoading"
               >
                 Редактировать
               </button>
               <button 
-                @click="deleteVacancy(vacancy.id)" 
-                class="btn btn-danger"
+                v-if="vacancy.status === 'active'"
+                @click="closeVacancy(vacancy)" 
+                class="btn btn-warning"
+                :disabled="actionLoading"
               >
-                Удалить
+                Закрыть вакансию
+              </button>
+              <button 
+                @click="deleteVacancy(vacancy)" 
+                class="btn btn-danger"
+                :disabled="actionLoading"
+              >
+                Удалить вакансию
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Сообщение если вакансий нет -->
-        <div v-if="vacancies.length === 0" class="empty-state">
+        <div v-else class="empty-state">
           <div class="empty-icon">📋</div>
           <h3>У вас пока нет вакансий</h3>
           <p>Создайте первую вакансию чтобы начать поиск кандидатов</p>
@@ -77,6 +115,7 @@
               v-model="vacancyForm.title" 
               required 
               placeholder="Например: Frontend Developer"
+              :disabled="formLoading"
             >
           </div>
 
@@ -86,6 +125,7 @@
               id="level" 
               v-model="vacancyForm.level" 
               required
+              :disabled="formLoading"
             >
               <option value="junior">Junior</option>
               <option value="middle">Middle</option>
@@ -102,6 +142,7 @@
               required 
               rows="4"
               placeholder="Опишите чем будет заниматься сотрудник..."
+              :disabled="formLoading"
             ></textarea>
           </div>
 
@@ -113,6 +154,7 @@
               required 
               rows="4"
               placeholder="Опишите требования к кандидату..."
+              :disabled="formLoading"
             ></textarea>
           </div>
 
@@ -121,18 +163,28 @@
               type="button" 
               @click="closeModal" 
               class="btn btn-outline"
+              :disabled="formLoading"
             >
               Отмена
             </button>
             <button 
               type="submit" 
-              :disabled="loading" 
+              :disabled="formLoading" 
               class="btn btn-primary"
             >
-              {{ loading ? 'Сохранение...' : (editingVacancy ? 'Обновить' : 'Создать') }}
+              {{ formLoading ? 'Сохранение...' : (editingVacancy ? 'Обновить' : 'Создать') }}
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div v-if="errorMessage" class="error-notification">
+      <div class="container">
+        <div class="error-content">
+          <span>{{ errorMessage }}</span>
+          <button @click="errorMessage = ''" class="btn-close-small">&times;</button>
+        </div>
       </div>
     </div>
   </div>
@@ -148,6 +200,10 @@ export default {
       vacancies: [],
       showCreateForm: false,
       loading: false,
+      formLoading: false,
+      actionLoading: false,
+      errorMessage: '',
+      copiedLinkId: null, // Для отслеживания скопированной ссылки
       editingVacancy: null,
       vacancyForm: {
         title: '',
@@ -157,47 +213,24 @@ export default {
       }
     }
   },
-  computed: {
-    // Тестовые данные для демонстрации
-    testVacancies() {
-      return [
-        {
-          id: 1,
-          title: 'Frontend Developer (Vue.js)',
-          level: 'middle',
-          description: 'Разработка пользовательских интерфейсов для HR-платформы',
-          requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
-          status: 'active',
-          created_at: '2024-01-15'
-        },
-        {
-          id: 2,
-          title: 'Backend Developer (Python)',
-          level: 'senior',
-          description: 'Разработка API и бизнес-логики платформы',
-          requirements: 'Python 3+, FastAPI, PostgreSQL, опыт работы 3+ года',
-          status: 'active',
-          created_at: '2024-01-10'
-        }
-      ]
-    }
-  },
   methods: {
     // Загрузка вакансий
     async loadVacancies() {
       this.loading = true
+      this.errorMessage = ''
+      
       try {
-        // TODO: Заменить на реальный API вызов
-        // const response = await api.getMyVacancies()
-        // this.vacancies = response
-        
-        // Временное использование тестовых данных
-        this.vacancies = this.testVacancies
+        const response = await api.getMyVacancies()
+        this.vacancies = response
         
       } catch (error) {
         console.error('Error loading vacancies:', error)
-        // В случае ошибки показываем тестовые данные
-        this.vacancies = this.testVacancies
+        this.errorMessage = this.getErrorMessage(error)
+        
+        // Если ошибка авторизации - перенаправляем на логин
+        if (error.message.includes('401') || error.message.includes('authentication')) {
+          this.$router.push({ name: 'employer-login' })
+        }
       } finally {
         this.loading = false
       }
@@ -205,60 +238,175 @@ export default {
 
     // Создание/обновление вакансии
     async saveVacancy() {
-      this.loading = true
+      console.log('=== SAVE VACANCY CALLED ===')
+      console.log('Editing vacancy:', this.editingVacancy)
+      
+      this.formLoading = true
+      this.errorMessage = ''
+      
       try {
         if (this.editingVacancy) {
-          // TODO: Редактирование вакансии через API
-          // await api.updateVacancy(this.editingVacancy.id, this.vacancyForm)
-          console.log('Updating vacancy:', this.vacancyForm)
-        } else {
-          // TODO: Создание вакансии через API
-          // const newVacancy = await api.createVacancy(this.vacancyForm)
-          // this.vacancies.unshift(newVacancy)
-          console.log('Creating vacancy:', this.vacancyForm)
+          const vacancyId = this.editingVacancy.vacancy_id || this.editingVacancy.id
+          console.log('Vacancy ID for update:', vacancyId)
           
-          // Временное добавление в массив
-          const newVacancy = {
-            id: Date.now(),
-            ...this.vacancyForm,
-            status: 'active',
-            created_at: new Date().toISOString()
+          const updatedVacancy = await api.updateVacancy(vacancyId, this.vacancyForm)
+          console.log('Update response:', updatedVacancy)
+          
+          const index = this.vacancies.findIndex(v => 
+            (v.vacancy_id || v.id) === (this.editingVacancy.vacancy_id || this.editingVacancy.id)
+          )
+          if (index !== -1) {
+            this.vacancies.splice(index, 1, updatedVacancy)
           }
+        } else {
+          const newVacancy = await api.createVacancy(this.vacancyForm)
+          console.log('Create response:', newVacancy)
           this.vacancies.unshift(newVacancy)
         }
         
         this.closeModal()
+        this.showSuccessMessage(this.editingVacancy ? 'Вакансия обновлена' : 'Вакансия создана')
         
       } catch (error) {
         console.error('Error saving vacancy:', error)
-        alert('Ошибка при сохранении вакансии')
+        this.errorMessage = this.getErrorMessage(error)
       } finally {
-        this.loading = false
+        this.formLoading = false
       }
     },
 
     // Редактирование вакансии
     editVacancy(vacancy) {
+      console.log('=== EDIT VACANCY ===')
+      console.log('Vacancy object:', vacancy)
+      
       this.editingVacancy = vacancy
-      this.vacancyForm = { ...vacancy }
+      this.vacancyForm = { 
+        title: vacancy.title,
+        level: vacancy.level,
+        description: vacancy.description,
+        requirements: vacancy.requirements
+      }
       this.showCreateForm = true
     },
 
-    // Удаление вакансии
-    async deleteVacancy(vacancyId) {
-      if (!confirm('Вы уверены, что хотите удалить эту вакансию?')) {
+    // Закрыть вакансию (изменить статус)
+    async closeVacancy(vacancy) {
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      
+      if (!confirm('Вы уверены, что хотите закрыть эту вакансию?')) {
         return
       }
 
+      this.actionLoading = true
+      this.errorMessage = ''
+      
       try {
-        // TODO: Удаление через API
-        // await api.deleteVacancy(vacancyId)
+        const updatedVacancy = await api.updateVacancy(vacancyId, { status: 'closed' })
         
-        this.vacancies = this.vacancies.filter(v => v.id !== vacancyId)
+        // Обновляем вакансию в списке
+        const index = this.vacancies.findIndex(v => 
+          (v.vacancy_id || v.id) === vacancyId
+        )
+        if (index !== -1) {
+          this.vacancies.splice(index, 1, updatedVacancy)
+        }
+        
+        this.showSuccessMessage('Вакансия закрыта')
+        
+      } catch (error) {
+        console.error('Error closing vacancy:', error)
+        this.errorMessage = this.getErrorMessage(error)
+      } finally {
+        this.actionLoading = false
+      }
+    },
+    
+    // Полное удаление вакансии
+    async deleteVacancy(vacancy) {
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      
+      if (!confirm('Вы уверены, что хотите полностью удалить эту вакансию? Это действие нельзя отменить.')) {
+        return
+      }
+
+      this.actionLoading = true
+      this.errorMessage = ''
+      
+      try {
+        await api.deleteVacancy(vacancyId)
+        
+        // Удаляем вакансию из списка
+        this.vacancies = this.vacancies.filter(v => 
+          (v.vacancy_id || v.id) !== vacancyId
+        )
+        this.showSuccessMessage('Вакансия удалена')
         
       } catch (error) {
         console.error('Error deleting vacancy:', error)
-        alert('Ошибка при удалении вакансии')
+        this.errorMessage = this.getErrorMessage(error)
+      } finally {
+        this.actionLoading = false
+      }
+    },
+
+    // Просмотр кандидатов по вакансии
+    viewCandidates(vacancy) {
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      this.$router.push({ 
+        name: 'candidates', 
+        query: { vacancy_id: vacancyId } 
+      })
+    },
+    
+    async copyVacancyLink(vacancy) {
+      const link = this.getVacancyPublicLink(vacancy)
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      
+      try {
+        await navigator.clipboard.writeText(link)
+        this.copiedLinkId = vacancyId
+        
+        setTimeout(() => {
+          this.copiedLinkId = null
+        }, 2000)
+        
+      } catch (err) {
+        const input = this.$refs.linkInput[this.vacancies.indexOf(vacancy)]
+        input.select()
+        document.execCommand('copy')
+        this.copiedLinkId = vacancyId
+        
+        setTimeout(() => {
+          this.copiedLinkId = null
+        }, 2000)
+      }
+    },
+
+    // Копирование ссылки в буфер обмена
+    async copyVacancyLink(vacancy) {
+      const link = this.getVacancyPublicLink(vacancy)
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      
+      try {
+        await navigator.clipboard.writeText(link)
+        this.copiedLinkId = vacancyId
+        
+        // Сбрасываем статус "Скопировано" через 2 секунды
+        setTimeout(() => {
+          this.copiedLinkId = null
+        }, 2000)
+        
+      } catch (err) {
+        // Fallback для старых браузеров
+        const input = this.$refs.linkInput[this.vacancies.indexOf(vacancy)]
+        input.select()
+        document.execCommand('copy')
+        this.copiedLinkId = vacancyId
+        
+        setTimeout(() => {
+          this.copiedLinkId = null
+        }, 2000)
       }
     },
 
@@ -272,9 +420,39 @@ export default {
         description: '',
         requirements: ''
       }
+      this.errorMessage = ''
     },
 
-    // Вспомогательные методы
+    // Показать успешное сообщение
+    showSuccessMessage(message) {
+      // Здесь можно добавить красивые уведомления
+      console.log(message)
+      // Или интегрировать с системой уведомлений, если есть
+    },
+
+    // Обработка ошибок
+    getErrorMessage(error) {
+      const message = error.message || 'Произошла ошибка'
+      
+      if (message.includes('401') || message.includes('authentication')) {
+        return 'Ошибка авторизации. Пожалуйста, войдите снова.'
+      } else if (message.includes('network') || message.includes('fetch')) {
+        return 'Ошибка соединения. Проверьте подключение к интернету.'
+      } else if (message.includes('500')) {
+        return 'Внутренняя ошибка сервера. Попробуйте позже.'
+      }
+      
+      return message
+    },
+
+    // Форматирование даты
+    formatDate(dateString) {
+      if (!dateString) return ''
+      const date = new Date(dateString)
+      return date.toLocaleDateString('ru-RU')
+    },
+
+    //////////////////////// Вспомогательные методы ////////////////////////
     getStatusText(status) {
       const statusMap = {
         active: 'Активна',
@@ -292,8 +470,23 @@ export default {
         lead: 'Lead'
       }
       return levelMap[level] || level
+    },
+
+    //////////////////////// Генерация публичной ссылки на вакансию ////////////////////////
+    getVacancyPublicLink(vacancy) {
+      const vacancyId = vacancy.vacancy_id || vacancy.id
+      return `${window.location.origin}/vacancy/${vacancyId}`
+    },
+
+    // Показ QR-кода для ссылки (опционально)
+    showQRCode(vacancy) {
+      const link = this.getVacancyPublicLink(vacancy)
+      // Здесь можно интегрировать библиотеку для генерации QR-кода
+      console.log('QR Code for:', link)
+      // Или открыть модальное окно с QR-кодом
     }
   },
+
   mounted() {
     // Проверяем авторизацию
     if (!authUtils.isAuthenticated()) {
@@ -307,6 +500,16 @@ export default {
 </script>
 
 <style scoped>
+.btn-warning {
+  background: #f59e0b;
+  color: white;
+  border: none;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+}
+
 .vacancies-view {
   min-height: 80vh;
 }
@@ -532,6 +735,104 @@ export default {
   .modal-content {
     margin: 1rem;
     max-height: calc(100vh - 2rem);
+  }
+  /* Добавляем новые стили для индикаторов загрузки и ошибок */
+.loading-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #8B5FBF;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-notification {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #fef3f2;
+  border-bottom: 1px solid #fecdca;
+  padding: 1rem 0;
+  z-index: 1100;
+}
+
+.error-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #d92d20;
+  font-weight: 500;
+}
+
+.btn-close-small {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #d92d20;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .error-content {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+    }
+  }
+}
+
+.vacancy-link {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.link-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f9f9f9;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.btn-small {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+}
+
+.btn.copied {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .vacancy-link {
+    flex-direction: column;
   }
 }
 </style>
