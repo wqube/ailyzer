@@ -9,6 +9,7 @@ import sys, os
 from .routes import interview
 from .routes import resume
 from .routes import candidates
+from .routes import vacancy_routes
 
 
 app = FastAPI(title="AIlyzer API")
@@ -30,9 +31,10 @@ app.include_router(resume.router)
 # app.include_router(interview.router)
 app.include_router(interview.router)
 app.include_router(candidates.router)
+app.include_router(vacancy_routes.router)
 
 print("PYTHONPATH:", sys.path)
 print("CHECK SHARED:", Path(str(BASE_DIR) + "/shared").exists())
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

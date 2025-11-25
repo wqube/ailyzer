@@ -12,7 +12,7 @@ async def save_upload_file(upload_file, destination: Path) -> Path:
         await out_file.write(content)
     return destination
 
-async def process_resume_file(upload_file, speciality: str, language: str):
+async def process_resume_file(upload_file, speciality: str, language: str): # speciality - теперь тема вакансии
     print(">>> process_resume_file called")
 
     filename = Path(upload_file.filename).name
@@ -24,6 +24,7 @@ async def process_resume_file(upload_file, speciality: str, language: str):
 
     loop = asyncio.get_running_loop()
 
+    # ВАЖНО: speciality (полное описание вакансии) передается в analyze_resume
     print(">>> Running analyze_resume...")
     result = await loop.run_in_executor(None, analyze_resume, str(dest), PASSING_SCORE_RESUME, speciality)
     print(f">>> analyze_resume result: {result}")
@@ -35,4 +36,5 @@ async def process_resume_file(upload_file, speciality: str, language: str):
     result['resume_text'] = resume_text
     result['language'] = language
     result['accepted'] = result.get('passed', False)
+    # Возвращаем результат, включая resume_text для последующего собеседования
     return result

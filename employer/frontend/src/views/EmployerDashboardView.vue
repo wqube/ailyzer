@@ -44,7 +44,6 @@
             <h3>Список вакансий</h3>
             <p>Посмотреть список текущих вакансий</p>
           </div>
-
         </div>
       </div>
 
@@ -70,6 +69,7 @@ export default {
         totalCandidates: 0,
         newApplications: 0
       },
+      recentActivities: []
     }
   },
 
@@ -94,7 +94,7 @@ export default {
     },
     
     navigateToCandidates() {
-      this.$router.push({ name: 'candidates' });
+      // Здесь будет навигация к кандидатам
     }
   },
   
@@ -134,7 +134,66 @@ export default {
       } finally {
         this.loading = false
       }
-    }
+    },
+
+    // generateRecentActivities(vacancies) {
+    //   const activities = []
+      
+    //   // Добавляем активности на основе вакансий
+    //   vacancies.slice(0, 3).forEach(vacancy => {
+    //     activities.push({
+    //       id: `vacancy-${vacancy.vacancy_id}`,
+    //       type: 'vacancy',
+    //       text: `Создана вакансия "${vacancy.title}"`,
+    //       time: this.formatTime(vacancy.created_at)
+    //     })
+    //   })
+      
+    //   // Добавляем моковые активности
+    //   activities.push(
+    //     {
+    //       id: 'candidate-1',
+    //       type: 'candidate',
+    //       text: 'Новый отклик на вакансию "Frontend Developer"',
+    //       time: '2 часа назад'
+    //     },
+    //     {
+    //       id: 'interview-1',
+    //       type: 'interview',
+    //       text: 'Запланировано собеседование с Иваном Петровым',
+    //       time: 'Вчера'
+    //     }
+    //   )
+      
+    //   this.recentActivities = activities
+    // },
+
+    // formatTime(dateString) {
+    //   const date = new Date(dateString)
+    //   const now = new Date()
+    //   const diffMs = now - date
+    //   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      
+    //   if (diffDays === 0) {
+    //     return 'Сегодня'
+    //   } else if (diffDays === 1) {
+    //     return 'Вчера'
+    //   } else if (diffDays < 7) {
+    //     return `${diffDays} дня назад`
+    //   } else {
+    //     return date.toLocaleDateString('ru-RU')
+    //   }
+    // },
+
+    // getActivityIcon(type) {
+    //   const icons = {
+    //     vacancy: '📋',
+    //     candidate: '👤',
+    //     interview: '🎯',
+    //     default: '📝'
+    //   }
+    //   return icons[type] || icons.default
+    // }
 }
 </script>
 

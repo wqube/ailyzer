@@ -168,6 +168,32 @@ class Vacancy(Base):
     questions: Mapped[List["Question"]] = relationship(back_populates="vacancy")
 
 
+# class Resume(Base):
+#     __tablename__ = "resumes"
+#     __table_args__ = (
+#         Index("idx_resumes_metadata", "metadata_json", postgresql_using="gin"),
+#         Index(
+#             "idx_resumes_fts",
+#             text("to_tsvector('simple', coalesce(parsed_text, ''))"),
+#             postgresql_using="gin",
+#         ),
+#     )
+
+#     resume_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+#     candidate_id: Mapped[int] = mapped_column(
+#         ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
+#     )
+#     vacancy_id: Mapped[Optional[int]] = mapped_column(
+#         ForeignKey("vacancies.vacancy_id", ondelete="SET NULL")
+#     )
+#     file_path: Mapped[Optional[str]] = mapped_column(Text)
+#     parsed_text: Mapped[Optional[str]] = mapped_column(Text)
+#     metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB)
+#     upload_date: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+#     candidate: Mapped["User"] = relationship(back_populates="candidate_resumes")
+#     vacancy: Mapped[Optional["Vacancy"]] = relationship(back_populates="resumes")
+
 class Resume(Base):
     __tablename__ = "resumes"
     __table_args__ = (
@@ -180,8 +206,11 @@ class Resume(Base):
     )
 
     resume_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    candidate_id: Mapped[int] = mapped_column(
-        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
+    candidate_id: Mapped[Optional[int]] = mapped_column(  # Делаем опциональным
+        ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    application_id: Mapped[Optional[int]] = mapped_column(  # НОВОЕ: связь с заявкой
+        ForeignKey("applications.application_id", ondelete="CASCADE")
     )
     vacancy_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("vacancies.vacancy_id", ondelete="SET NULL")
@@ -191,7 +220,8 @@ class Resume(Base):
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB)
     upload_date: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    candidate: Mapped["User"] = relationship(back_populates="candidate_resumes")
+    candidate: Mapped[Optional["User"]] = relationship(back_populates="candidate_resumes")
+    application: Mapped[Optional["Application"]] = relationship(back_populates="resumes")  # НОВОЕ
     vacancy: Mapped[Optional["Vacancy"]] = relationship(back_populates="resumes")
 
 
@@ -283,6 +313,29 @@ class Evaluation(Base):
     created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     interview: Mapped["Interview"] = relationship(back_populates="evaluation")
+
+
+class Application(Base):
+    __tablename__ = "applications"
+    __table_args__ = (
+        UniqueConstraint("email", "vacancy_id", name="uq_application_email_vacancy"),
+    )
+
+    application_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    full_name: Mapped[str] = mapped_column(Text, nullable=False)
+    phone: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[Optional[str]] = mapped_column(Text)
+    experience: Mapped[Optional[int]] = mapped_column(Integer)
+    salary_expectation: Mapped[Optional[int]] = mapped_column(Integer)
+    cover_letter: Mapped[Optional[str]] = mapped_column(Text)
+    vacancy_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("vacancies.vacancy_id", ondelete="SET NULL")
+    )
+    created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    vacancy: Mapped[Optional["Vacancy"]] = relationship()
+    resumes: Mapped[List["Resume"]] = relationship(back_populates="application")
 
 
 # ---------- ОТЗЫВЫ HR ----------

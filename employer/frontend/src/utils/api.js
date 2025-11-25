@@ -315,111 +315,103 @@ export const api = {
     }
   },
 
-
-  // // Обновить вакансию
-  // async updateVacancy(vacancyId, vacancyData) {
-  //   if (USE_MOCK_DATA) {
-  //     return new Promise((resolve) => {
-  //       setTimeout(() => {
-  //         resolve({
-  //           id: vacancyId,
-  //           ...vacancyData,
-  //           status: 'active',
-  //           updated_at: new Date().toISOString()
-  //         });
-  //       }, 1000);
-  //     });
-  //   }
-
-  //   try {
-  //     const tokens = authUtils.getTokens();
-  //     const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
-  //       method: 'PATCH',
-  //       headers: {
-  //         'Authorization': `Bearer ${tokens.access_token}`,
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify(vacancyData)
-  //     });
-      
-  //     if (!response.ok) {
-  //       const errorData = await response.json().catch(() => null);
-  //       throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
-  //     }
-      
-  //     return await response.json();
-  //   } catch (error) {
-  //     console.error('Error updating vacancy:', error);
-  //     throw error;
-  //   }
-  // },
-
-  // // Удалить вакансию
-  // async deleteVacancy(vacancyId) {
-  //   if (USE_MOCK_DATA) {
-  //     return new Promise((resolve) => {
-  //       setTimeout(() => {
-  //         resolve({ success: true, message: 'Vacancy deleted successfully' });
-  //       }, 1000);
-  //     });
-  //   }
-
-  //   try {
-  //     const tokens = authUtils.getTokens();
-  //     const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
-  //       method: 'DELETE',
-  //       headers: {
-  //         'Authorization': `Bearer ${tokens.access_token}`,
-  //       }
-  //     });
-      
-  //     if (!response.ok) {
-  //       const errorData = await response.json().catch(() => null);
-  //       throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
-  //     }
-      
-  //     // Для DELETE запроса может не быть тела ответа
-  //     if (response.status === 204) {
-  //       return { success: true, message: 'Vacancy deleted successfully' };
-  //     }
-      
-  //     return await response.json();
-  //   } catch (error) {
-  //     console.error('Error deleting vacancy:', error);
-  //     throw error;
-  //   }
-  // },
-
   // Получить вакансию по ID
-  // Получить кандидатов по вакансии
-async getCandidatesByVacancy(vacancyId, filters = {}) {
+  async getVacancyById(vacancyId) {
+    if (USE_MOCK_DATA) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            id: vacancyId,
+            title: 'Frontend Developer (Vue.js)',
+            level: 'middle',
+            description: 'Разработка пользовательских интерфейсов для HR-платформы',
+            requirements: 'Опыт работы с Vue.js 2+ года, знание JavaScript, HTML5, CSS3',
+            status: 'active',
+            created_at: '2024-01-15'
+          });
+        }, 1000);
+      });
+    }
+
+    try {
+      const tokens = authUtils.getTokens();
+      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching vacancy:', error);
+      throw error;
+    }
+  }
+}
+
+// Вспомогательные функции для работы с аутентификацией
+export const authUtils = {
+  // Сохранение токенов в localStorage
+  saveTokens(tokens) {
+    if (tokens.access_token) {
+      localStorage.setItem('access_token', tokens.access_token)
+    }
+    if (tokens.refresh_token) {
+      localStorage.setItem('refresh_token', tokens.refresh_token)
+    }
+  },
+
+  // Получение токенов из localStorage
+  getTokens() {
+    return {
+      access_token: localStorage.getItem('access_token'),
+      refresh_token: localStorage.getItem('refresh_token')
+    }
+  },
+
+  // Удаление токенов (при выходе)
+  clearTokens() {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+  },
+
+  // Проверка, авторизован ли пользователь
+  isAuthenticated() {
+    return !!localStorage.getItem('access_token')
+  },
+
+  // Получить заголовки с авторизацией
+  getAuthHeaders() {
+    const tokens = this.getTokens();
+    return {
+      'Authorization': `Bearer ${tokens.access_token}`,
+      'Content-Type': 'application/json',
+    }
+  },
+
+  // Получить кандидатов для вакансии
+async getCandidatesForVacancy(vacancyId) {
   if (USE_MOCK_DATA) {
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve([
           {
-            candidate_id: 1,
-            user_id: 1,
-            name: 'Иван Петров',
-            email: 'ivan.petrov@example.com',
+            id: 1,
+            full_name: 'Иванов Иван Иванович',
+            email: 'ivanov@example.com',
             phone: '+7 (999) 123-45-67',
-            resume_text: 'Frontend разработчик с опытом работы 3 года. Vue.js, JavaScript, HTML, CSS.',
-            resume_file: '/uploads/resumes/1_cv.pdf',
-            vacancy_id: vacancyId,
+            experience: '3 года',
+            skills: 'Vue.js, JavaScript, HTML, CSS',
             status: 'new',
-            created_at: new Date().toISOString()
-          },
-          {
-            candidate_id: 2,
-            user_id: 2,
-            name: 'Мария Сидорова',
-            email: 'maria.sidorova@example.com',
-            phone: '+7 (999) 765-43-21',
-            resume_text: 'Fullstack разработчик. Vue.js, Node.js, PostgreSQL.',
-            resume_file: '/uploads/resumes/2_cv.pdf',
-            vacancy_id: vacancyId,
-            status: 'reviewed',
-            created_at: new Date(Date.now() - 86400000).toISOString()
+            applied_at: '2024-01-20T10:30:00',
+            resume_url: '/resumes/resume1.pdf'
           }
         ]);
       }, 1000);
@@ -428,14 +420,7 @@ async getCandidatesByVacancy(vacancyId, filters = {}) {
 
   try {
     const tokens = authUtils.getTokens();
-    const params = new URLSearchParams();
-    
-    if (filters.status) params.append('status_filter', filters.status);
-    if (filters.search) params.append('search', filters.search);
-    
-    const url = `${API_BASE_URL}/api/v1/candidates/vacancy/${vacancyId}?${params.toString()}`;
-    
-    const response = await fetch(url, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}/candidates`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
@@ -453,171 +438,5 @@ async getCandidatesByVacancy(vacancyId, filters = {}) {
     console.error('Error fetching candidates:', error);
     throw error;
   }
-  }, 
-
-  // Получить детальную информацию о кандидате
-async getCandidateDetails(candidateId, vacancyId = null) {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          candidate_id: candidateId,
-          user_id: candidateId,
-          name: 'Иван Петров',
-          email: 'ivan.petrov@example.com',
-          phone: '+7 (999) 123-45-67',
-          resume_text: 'Frontend разработчик с опытом работы 3 года. Vue.js, JavaScript, HTML, CSS.',
-          resume_file: '/uploads/resumes/1_cv.pdf',
-          vacancy_id: vacancyId,
-          status: 'new',
-          created_at: new Date().toISOString(),
-          parsed_text: 'Frontend разработчик с опытом работы 3 года. Vue.js, JavaScript, HTML, CSS.',
-          metadata_json: {
-            experience: '3 года',
-            skills: ['Vue.js', 'JavaScript', 'HTML', 'CSS'],
-            education: 'Высшее техническое'
-          },
-          upload_date: new Date().toISOString()
-        });
-      }, 1000);
-    });
-  }
-
-  try {
-    const tokens = authUtils.getTokens();
-    const params = new URLSearchParams();
-    
-    if (vacancyId) params.append('vacancy_id', vacancyId);
-    
-    const url = `${API_BASE_URL}/api/v1/candidates/${candidateId}?${params.toString()}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching candidate details:', error);
-    throw error;
-  }
-},
-
-// Обновить статус кандидата
-async updateCandidateStatus(candidateId, vacancyId, status) {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          candidate_id: candidateId,
-          user_id: candidateId,
-          name: 'Иван Петров',
-          email: 'ivan.petrov@example.com',
-          phone: '+7 (999) 123-45-67',
-          resume_text: 'Frontend разработчик с опытом работы 3 года. Vue.js, JavaScript, HTML, CSS.',
-          resume_file: '/uploads/resumes/1_cv.pdf',
-          vacancy_id: vacancyId,
-          status: status,
-          created_at: new Date().toISOString()
-        });
-      }, 1000);
-    });
-  }
-
-  try {
-    const tokens = authUtils.getTokens();
-    const url = `${API_BASE_URL}/api/v1/candidates/${candidateId}/status?vacancy_id=${vacancyId}`;
-    
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating candidate status:', error);
-    throw error;
-  }
-},
-
-// Получить всех кандидатов работодателя
-async getAllCandidates(filters = {}) {
-  if (USE_MOCK_DATA) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            candidate_id: 1,
-            user_id: 1,
-            name: 'Иван Петров',
-            email: 'ivan.petrov@example.com',
-            phone: '+7 (999) 123-45-67',
-            resume_text: 'Frontend разработчик с опытом работы 3 года. Vue.js, JavaScript, HTML, CSS.',
-            resume_file: '/uploads/resumes/1_cv.pdf',
-            vacancy_id: 1,
-            status: 'new',
-            created_at: new Date().toISOString()
-          },
-          {
-            candidate_id: 2,
-            user_id: 2,
-            name: 'Мария Сидорова',
-            email: 'maria.sidorova@example.com',
-            phone: '+7 (999) 765-43-21',
-            resume_text: 'Fullstack разработчик. Vue.js, Node.js, PostgreSQL.',
-            resume_file: '/uploads/resumes/2_cv.pdf',
-            vacancy_id: 2,
-            status: 'reviewed',
-            created_at: new Date(Date.now() - 86400000).toISOString()
-          }
-        ]);
-      }, 1000);
-    });
-  }
-
-  try {
-    const tokens = authUtils.getTokens();
-    const params = new URLSearchParams();
-    
-    if (filters.status) params.append('status_filter', filters.status);
-    if (filters.search) params.append('search', filters.search);
-    
-    const url = `${API_BASE_URL}/api/v1/candidates?${params.toString()}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching all candidates:', error);
-    throw error;
-  }
-  }
+}
 }

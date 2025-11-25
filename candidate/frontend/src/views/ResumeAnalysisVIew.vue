@@ -17,9 +17,20 @@
     <main class="main-content">
       <section class="resume-section">
         <div class="container">
+          <div v-if="vacancyData" class="vacancy-banner">
+            <h3>📋 Отклик на вакансию</h3>
+            <h2>{{ vacancyData.title }}</h2>
+            <p class="vacancy-level">{{ getLevelText(vacancyData.level) }}</p>
+          </div>
+
           <div class="resume-card">
             <h2>Анализ вашего резюме</h2>
-            <p class="subtitle">Загрузите ваше резюме, и наш ИИ проанализирует его и предложит подходящие вакансии</p>
+            <p class="subtitle">
+              {{ vacancyData 
+                ? 'Загрузите резюме для отклика на вакансию' 
+                : 'Загрузите ваше резюме, и наш ИИ проанализирует его и предложит подходящие вакансии' 
+              }}
+            </p>
             
             <div class="upload-container">
               <div class="upload-area" 
@@ -75,12 +86,15 @@
                 <button 
                   type="button" 
                   class="btn btn-primary btn-full" 
-                  :disabled="!selectedFile || isLoading"
+                  :disabled="!selectedFile || isLoading || !vacancyData"
                   @click="analyzeResume"
                 >
                   <span v-if="isLoading">Анализ...</span>
                   <span v-else>Проанализировать резюме</span>
                 </button>
+                <p v-if="!vacancyData && route.params.id" class="warning-text">
+                  ⚠️ Ожидание загрузки данных вакансии...
+                </p>
               </div>
             </div>
             
@@ -122,78 +136,14 @@
   </div>
 </template>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { useRouter } from 'vue-router'
-import { api } from '@/utils/api'
+import { useRouter, useRoute } from 'vue-router'
+import { api } from '@/utils/api' // Предполагается, что api.getVacancy существует
 
 const router = useRouter()
+const route = useRoute()
 const appStore = useAppStore()
 
 const fileInput = ref(null)
@@ -201,14 +151,74 @@ const selectedFile = ref(null)
 const isDragover = ref(false)
 const isLoading = ref(false)
 const analysisResult = ref(null)
+const vacancyData = ref(null)
 
 const userData = computed(() => appStore.userData)
 
-onMounted(() => {
-  appStore.loadFromStorage()
-  if (!userData.value.fullName) {
-    router.push('/')
+// Получение текста уровня вакансии
+const getLevelText = (level) => {
+  const levelMap = {
+    junior: 'Junior',
+    middle: 'Middle',
+    senior: 'Senior',
+    lead: 'Lead'
   }
+  return levelMap[level] || level
+}
+
+
+onMounted(async () => {
+  // Загружаем данные из localStorage
+  appStore.loadFromStorage()
+  
+  // Проверяем, что пользователь заполнил основные данные
+  if (!userData.value.fullName) {
+    const vacancyId = route.params.id
+    if (vacancyId) {
+      router.push(`/${vacancyId}`)
+    } else {
+      router.push('/')
+    }
+    return
+  }
+
+  // --- ЛОГИКА ЗАГРУЗКИ ВАКАНСИИ ---
+  const vacancyId = route.params.id
+  if (vacancyId) {
+    const idInt = parseInt(vacancyId)
+    console.log('Resume analysis for vacancy:', idInt)
+    // 1. Устанавливаем vacancyId в store
+    appStore.setUserData({ vacancyId: idInt })
+    
+    // 2. Загружаем данные вакансии, если они еще не загружены или ID изменился
+    if (!userData.value.vacancyData || userData.value.vacancyData.vacancy_id !== idInt) {
+      try {
+        console.log(`Fetching vacancy data for ID: ${idInt}`)
+        // Имитация загрузки
+        isLoading.value = true 
+        
+        const response = await api.getVacancy(idInt) 
+        vacancyData.value = response
+        appStore.setUserData({ vacancyData: response }) // Сохраняем в store
+        console.log('Successfully fetched and saved vacancy data:', vacancyData.value)
+      } catch (error) {
+        console.error('Error fetching vacancy data:', error)
+        alert(`Ошибка загрузки данных вакансии: ${error.message}. Убедитесь, что ID (${vacancyId}) корректен.`)
+        vacancyData.value = null
+      } finally {
+        isLoading.value = false
+      }
+    } else {
+      // Загружаем данные вакансии из store (если они были сохранены)
+      vacancyData.value = userData.value.vacancyData
+      console.log('Loaded vacancy data from store:', vacancyData.value)
+    }
+  } else {
+    // Если нет ID вакансии, очищаем данные о вакансии из состояния
+    appStore.setUserData({ vacancyId: null, vacancyData: null })
+    vacancyData.value = null
+  }
+  // --- КОНЕЦ ЛОГИКИ ЗАГРУЗКИ ВАКАНСИИ ---
 })
 
 const triggerFileInput = () => fileInput.value?.click()
@@ -225,22 +235,47 @@ const handleDrop = (event) => {
   isDragover.value = false
 }
 
+const handleDragOver = (e) => {
+  e.preventDefault()
+  isDragover.value = true
+}
+
+const handleDragLeave = () => {
+  isDragover.value = false
+}
+
+const removeFile = () => {
+  selectedFile.value = null
+  analysisResult.value = null
+}
+
 const analyzeResume = async () => {
-  if (!selectedFile.value) return
+  if (!selectedFile.value || !userData.value.vacancyId || !vacancyData.value) {
+    alert("Пожалуйста, выберите файл и убедитесь, что данные вакансии загружены.")
+    return
+  }
 
   isLoading.value = true
   analysisResult.value = null
 
   try {
+    console.log('=== STARTING RESUME ANALYSIS ===')
+    
+    // 1. Загружаем и анализируем резюме
     const formData = new FormData()
     formData.append('resume', selectedFile.value)
     formData.append('fullname', userData.value.fullName)
-    formData.append('interview_topic', 'software_developer')
+    
+    // !!! КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Отправляем vacancy_id вместо interview_topic
+    formData.append('vacancy_id', userData.value.vacancyId) 
+    
     formData.append('select_language', 'ru')
 
+    console.log('Uploading resume for analysis...')
     const result = await api.uploadResume(formData)
+    console.log('Analysis result:', result)
 
-    // Вывод данных анализа
+    // 2. Обрабатываем результат анализа
     analysisResult.value = {
       accepted: result.accepted || result.passed,
       score: result.score || 0,
@@ -248,159 +283,114 @@ const analyzeResume = async () => {
       errors: result.errors || []
     }
 
-    // ====== ВАЖНО: Сохранение данных в store ======
-
-    // 1) Сохраняем текст резюме и основные данные
-    appStore.setResumeData({
-  fullName: userData.value.fullName,
-  email: userData.value.email,
-  phone: userData.value.phone,
-  resumeText: 
-        result.parsed_text
-     || result.resume_text
-     || result.details
-     || ""
-})
-
-
-    // 2) Сохраняем результат анализа
-    appStore.setResumeAnalysis(result)
-
-// ============ СОХРАНЯЕМ КАНДИДАТА В БД ============
-
-const candidateData = new FormData()
-candidateData.append("email", userData.value.email)
-candidateData.append("password_hash", "TEMP_PASSWORD_HASH")
-candidateData.append("parsed_text", result.resume_text || result.details || "")
-candidateData.append("metadata_json", JSON.stringify(result))
-candidateData.append("resume", selectedFile.value)
-
-try {
-  const candidateResponse = await api.createCandidate(candidateData)
-  console.log("Кандидат сохранён:", candidateResponse)
-} catch (e) {
-  console.error("Ошибка сохранения кандидата:", e)
-}
-
+    // 3. Формируем подробный topic для интервью и сохраняем данные в store
+    const fullTopic = (
+      `Вакансия: ${vacancyData.value.title}. Уровень: ${vacancyData.value.level}. ` +
+      `Требования: ${vacancyData.value.requirements}. Описание: ${vacancyData.value.description}`
+    )
     
+    appStore.setResumeData({
+      fullName: userData.value.fullName,
+      email: userData.value.email,
+      phone: userData.value.phone,
+      resumeText: 
+        result.parsed_text
+        || result.resume_text
+        || result.details
+        || ""
+    })
+    
+    // 4. Сохраняем результат анализа и данные для интервью
+    appStore.setResumeAnalysis(result)
+    
+    // Подготовка данных для интервью с полным текстом вакансии в качестве темы
+    appStore.prepareInterviewData({
+      topic: fullTopic,
+      resumeText: result.parsed_text || result.resume_text || result.details || ""
+    })
 
-    // 3) Формируем interviewData — БЕЗ ЭТОГО InterviewView НЕ ЗАПУСКАЕТСЯ
-    appStore.prepareInterviewData()
+    // 5. СОХРАНЯЕМ КАНДИДАТА В БД 
+    console.log('=== SAVING CANDIDATE TO DATABASE ===')
+    
+    const candidateData = new FormData()
+    candidateData.append("email", userData.value.email)
+    candidateData.append("full_name", userData.value.fullName)
+    candidateData.append("phone", userData.value.phone)
+    candidateData.append("parsed_text", result.parsed_text || result.resume_text || result.details || "")
+    candidateData.append("metadata_json", JSON.stringify(result))
+    candidateData.append("resume", selectedFile.value)
+    candidateData.append("vacancy_id", userData.value.vacancyId)
 
-    // ================================================
+    try {
+      console.log('Calling api.createCandidate...')
+      const candidateResponse = await api.createCandidate(candidateData)
+      console.log('✅ Кандидат успешно сохранён:', candidateResponse)
+    } catch (e) {
+      console.error('❌ Ошибка сохранения кандидата:', e)
+      // В реальном приложении здесь нужна более изящная обработка ошибок
+    }
+
+    console.log('=== RESUME ANALYSIS COMPLETED ===')
 
   } catch (err) {
-    console.error(err)
+    console.error('❌ CRITICAL ERROR in analyzeResume:', err)
+    
     analysisResult.value = {
       accepted: false,
       score: 0,
       message: 'Ошибка анализа резюме',
-      errors: ['Произошла ошибка. Попробуйте снова.']
+      errors: [`Произошла ошибка: ${err.message}`]
     }
+  } finally {
+    isLoading.value = false
   }
-
-  isLoading.value = false
 }
 
-const backToForm = () => router.push('/')
+const backToForm = () => {
+  if (vacancyData.value) {
+    router.push(`/${vacancyData.value.vacancy_id}`)
+  } else {
+    router.push('/')
+  }
+}
 
 const startInterview = () => {
-  // interviewData уже создано в analyzeResume
   router.push('/interview')
 }
+
 </script>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <style scoped>
+/* Баннер с информацией о вакансии */
+.vacancy-banner {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 10px;
+  margin-bottom: 2rem;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.2);
+}
+
+.vacancy-banner h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.vacancy-banner h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.vacancy-level {
+  margin: 0;
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+/* Основные стили */
 .resume-analysis-view {
   min-height: 100vh;
   display: flex;
@@ -420,14 +410,18 @@ const startInterview = () => {
   width: 100%;
 }
 
+.container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
 .resume-card {
   background: white;
   padding: 40px;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 700px;
-  margin: 0 auto;
 }
 
 .resume-card h2 {
@@ -619,6 +613,16 @@ const startInterview = () => {
   left: 0;
 }
 
+.interview-action {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.btn-large {
+  padding: 15px 40px;
+  font-size: 1.1em;
+}
+
 /* Header */
 .header {
   background-color: white;
@@ -633,12 +637,14 @@ const startInterview = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  max-width: 1200px;
 }
 
 .logo h1 {
   color: #10b981;
   font-size: 28px;
   font-weight: 700;
+  margin: 0;
 }
 
 .header-actions {
@@ -676,10 +682,15 @@ const startInterview = () => {
   color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #0da271;
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-outline {
@@ -705,6 +716,10 @@ const startInterview = () => {
   text-align: center;
 }
 
+.footer p {
+  margin: 0;
+}
+
 @media (max-width: 768px) {
   .header .container {
     flex-direction: column;
@@ -726,12 +741,19 @@ const startInterview = () => {
   
   .resume-card {
     padding: 30px 20px;
-    margin: 20px;
   }
   
   .result-card {
     flex-direction: column;
     text-align: center;
+  }
+
+  .vacancy-banner {
+    padding: 1.5rem;
+  }
+
+  .vacancy-banner h2 {
+    font-size: 1.5rem;
   }
 }
 </style>

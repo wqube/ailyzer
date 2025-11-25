@@ -49,11 +49,5 @@ def hello():
         "message": "hello"
     }
 
-# @app.get("/reg")
-# def registration():
-#     return {
-#         "message": "registration"
-#     }
-
 if __name__ == "__main__":
     uvicorn.run("main:app", reload=True)

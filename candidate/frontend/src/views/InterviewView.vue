@@ -143,28 +143,6 @@
   </div>
 </template>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <script setup>
 import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -281,7 +259,7 @@ const startInterview = async () => {
   addMessage("Запуск собеседования...", "bot")
 
   try {
-    const response = await fetch("http://localhost:8000/api/start_interview", {
+    const response = await fetch("http://localhost:8001/api/start_interview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -316,7 +294,7 @@ const sendAnswer = async () => {
   isLoading.value = true
 
   try {
-    const response = await fetch("http://localhost:8000/api/answer", {
+    const response = await fetch("http://localhost:8001/api/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -399,67 +377,6 @@ onUnmounted(() => {
   speechRecognition.value?.stop()
 })
 </script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 <style scoped>
 .interview-view {

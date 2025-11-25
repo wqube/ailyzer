@@ -1,7 +1,7 @@
-const API_BASE_URL = 'http://localhost:8000'
-
+const API_BASE_URL = 'http://localhost:8001'
 
 export const api = {
+  // Загрузка резюме
   async uploadResume(formData) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/upload-resume`, {
@@ -20,6 +20,31 @@ export const api = {
     }
   },
 
+  // НОВЫЙ МЕТОД: Получение вакансии по ID
+  async getVacancyById(vacancyId) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/vacancies/${vacancyId}`, {
+        method: 'GET'
+      })
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Вакансия не найдена')
+        }
+        if (response.status === 400) {
+          throw new Error('Вакансия неактивна')
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('Get vacancy error:', error)
+      throw error
+    }
+  },
+
+  // Интервью
   async startInterview(interviewData) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/start_interview`, {
@@ -63,6 +88,8 @@ export const api = {
       throw new Error('Не удалось отправить ответ. Проверьте подключение к серверу.')
     }
   },
+
+  // Создание кандидата
   async createCandidate(formData) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/candidates/create`, {

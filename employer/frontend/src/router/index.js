@@ -5,7 +5,6 @@ import EmployerLoginView from '@/views/EmployerLoginView.vue'
 import EmployerRegisterView from '@/views/EmployerRegisterView.vue'
 import EmployerDashboardView from '@/views/EmployerDashboardView.vue'
 import VacanciesView from '@/views/VacanciesView.vue'
-import CandidatesView from '@/views/CandidatesView.vue'
 
 // Guard для защиты маршрутов, требующих аутентификации
 const requireAuth = (to, from, next) => {
@@ -68,13 +67,13 @@ const routes = [
   beforeEnter: requireAuth
   },
 
-   // Для кандидатов
+  //Для кандидатов на вакнсии
   {
-    path: '/employer/candidates',
-    name: 'candidates',
-    component: CandidatesView,
-    meta: { title: 'Кандидаты', requiresAuth: true },
-    beforeEnter: requireAuth
+  path: '/employer/vacancies/:vacancyId/candidates',
+  name: 'employer-candidates',
+  component: () => import('@/views/CandidatesView.vue'),
+  meta: { title: 'Кандидаты', requiresAuth: true },
+  beforeEnter: requireAuth
   },
   //////////////////////
   

@@ -11,11 +11,13 @@
 
     <div class="vacancies-content">
       <div class="container">
+        <!-- Индикатор загрузки -->
         <div v-if="loading && vacancies.length === 0" class="loading-state">
           <div class="loading-spinner"></div>
           <p>Загрузка вакансий...</p>
         </div>
 
+        <!-- Список вакансий -->
         <div class="vacancies-list" v-else-if="vacancies.length > 0">
           <div 
             v-for="vacancy in vacancies" 
@@ -58,9 +60,10 @@
                 @click="viewCandidates(vacancy)" 
                 class="btn btn-outline"
                 :disabled="actionLoading"
-              >
-                Посмотреть кандидатов
+                >
+                Просмотр кандидатов
               </button>
+
               <button 
                 @click="editVacancy(vacancy)" 
                 class="btn btn-outline"
@@ -68,25 +71,20 @@
               >
                 Редактировать
               </button>
+
               <button 
-                v-if="vacancy.status === 'active'"
                 @click="closeVacancy(vacancy)" 
-                class="btn btn-warning"
-                :disabled="actionLoading"
-              >
-                Закрыть вакансию
-              </button>
-              <button 
-                @click="deleteVacancy(vacancy)" 
                 class="btn btn-danger"
-                :disabled="actionLoading"
-              >
-                Удалить вакансию
+                :disabled="actionLoading || vacancy.status === 'closed'"
+                :class="{ 'btn-secondary': vacancy.status === 'closed' }"
+                >
+              {{ vacancy.status === 'closed' ? 'Закрыта' : 'Закрыть' }}
               </button>
             </div>
           </div>
         </div>
 
+        <!-- Сообщение если вакансий нет -->
         <div v-else class="empty-state">
           <div class="empty-icon">📋</div>
           <h3>У вас пока нет вакансий</h3>
@@ -179,6 +177,7 @@
       </div>
     </div>
 
+    <!-- Уведомления об ошибках -->
     <div v-if="errorMessage" class="error-notification">
       <div class="container">
         <div class="error-content">
@@ -246,12 +245,14 @@ export default {
       
       try {
         if (this.editingVacancy) {
+          // ИСПРАВЛЕНО: используем vacancy_id вместо id
           const vacancyId = this.editingVacancy.vacancy_id || this.editingVacancy.id
           console.log('Vacancy ID for update:', vacancyId)
           
           const updatedVacancy = await api.updateVacancy(vacancyId, this.vacancyForm)
           console.log('Update response:', updatedVacancy)
           
+          // Обновляем вакансию в списке - тоже исправляем ID
           const index = this.vacancies.findIndex(v => 
             (v.vacancy_id || v.id) === (this.editingVacancy.vacancy_id || this.editingVacancy.id)
           )
@@ -259,6 +260,7 @@ export default {
             this.vacancies.splice(index, 1, updatedVacancy)
           }
         } else {
+          // Создание новой вакансии
           const newVacancy = await api.createVacancy(this.vacancyForm)
           console.log('Create response:', newVacancy)
           this.vacancies.unshift(newVacancy)
@@ -290,99 +292,61 @@ export default {
       this.showCreateForm = true
     },
 
-    // Закрыть вакансию (изменить статус)
-    async closeVacancy(vacancy) {
-      const vacancyId = vacancy.vacancy_id || vacancy.id
-      
-      if (!confirm('Вы уверены, что хотите закрыть эту вакансию?')) {
-        return
-      }
-
-      this.actionLoading = true
-      this.errorMessage = ''
-      
-      try {
-        const updatedVacancy = await api.updateVacancy(vacancyId, { status: 'closed' })
-        
-        // Обновляем вакансию в списке
-        const index = this.vacancies.findIndex(v => 
-          (v.vacancy_id || v.id) === vacancyId
-        )
-        if (index !== -1) {
-          this.vacancies.splice(index, 1, updatedVacancy)
-        }
-        
-        this.showSuccessMessage('Вакансия закрыта')
-        
-      } catch (error) {
-        console.error('Error closing vacancy:', error)
-        this.errorMessage = this.getErrorMessage(error)
-      } finally {
-        this.actionLoading = false
-      }
-    },
-    
-    // Полное удаление вакансии
-    async deleteVacancy(vacancy) {
-      const vacancyId = vacancy.vacancy_id || vacancy.id
-      
-      if (!confirm('Вы уверены, что хотите полностью удалить эту вакансию? Это действие нельзя отменить.')) {
-        return
-      }
-
-      this.actionLoading = true
-      this.errorMessage = ''
-      
-      try {
-        await api.deleteVacancy(vacancyId)
-        
-        // Удаляем вакансию из списка
-        this.vacancies = this.vacancies.filter(v => 
-          (v.vacancy_id || v.id) !== vacancyId
-        )
-        this.showSuccessMessage('Вакансия удалена')
-        
-      } catch (error) {
-        console.error('Error deleting vacancy:', error)
-        this.errorMessage = this.getErrorMessage(error)
-      } finally {
-        this.actionLoading = false
-      }
-    },
-
-    // Просмотр кандидатов по вакансии
+    // Просмотр кандидатов
     viewCandidates(vacancy) {
       const vacancyId = vacancy.vacancy_id || vacancy.id
       this.$router.push({ 
-        name: 'candidates', 
-        query: { vacancy_id: vacancyId } 
+        name: 'employer-candidates', 
+        params: { vacancyId: vacancyId } 
       })
     },
-    
-    async copyVacancyLink(vacancy) {
-      const link = this.getVacancyPublicLink(vacancy)
-      const vacancyId = vacancy.vacancy_id || vacancy.id
-      
-      try {
-        await navigator.clipboard.writeText(link)
-        this.copiedLinkId = vacancyId
-        
-        setTimeout(() => {
-          this.copiedLinkId = null
-        }, 2000)
-        
-      } catch (err) {
-        const input = this.$refs.linkInput[this.vacancies.indexOf(vacancy)]
-        input.select()
-        document.execCommand('copy')
-        this.copiedLinkId = vacancyId
-        
-        setTimeout(() => {
-          this.copiedLinkId = null
-        }, 2000)
-      }
-    },
 
+    // Закрытие вакансии (вместо удаления)
+  async closeVacancy(vacancy) {
+    console.log('=== CLOSE VACANCY CALLED ===')
+    console.log('Vacancy object:', vacancy)
+    
+    const vacancyId = vacancy.vacancy_id || vacancy.id
+    console.log('Vacancy ID to close:', vacancyId)
+    
+    if (vacancy.status === 'closed') {
+      alert('Вакансия уже закрыта')
+      return
+    }
+    
+    if (!confirm('Вы уверены, что хотите закрыть эту вакансию? После закрытия кандидаты не смогут на нее откликаться.')) {
+      return
+    }
+
+    this.actionLoading = true
+    this.errorMessage = ''
+    
+    try {
+      // Обновляем статус вакансии на 'closed'
+      const updatedVacancy = await api.updateVacancy(vacancyId, {
+        ...vacancy,
+        status: 'closed'
+      })
+      console.log('Close successful:', updatedVacancy)
+      
+      // Обновляем вакансию в списке
+      const index = this.vacancies.findIndex(v => 
+        (v.vacancy_id || v.id) === vacancyId
+      )
+      if (index !== -1) {
+        this.vacancies.splice(index, 1, updatedVacancy)
+      }
+      
+      this.showSuccessMessage('Вакансия закрыта')
+      
+    } catch (error) {
+      console.error('Error closing vacancy:', error)
+      this.errorMessage = this.getErrorMessage(error)
+    } finally {
+      this.actionLoading = false
+    }
+  },
+    
     // Копирование ссылки в буфер обмена
     async copyVacancyLink(vacancy) {
       const link = this.getVacancyPublicLink(vacancy)
@@ -475,7 +439,8 @@ export default {
     //////////////////////// Генерация публичной ссылки на вакансию ////////////////////////
     getVacancyPublicLink(vacancy) {
       const vacancyId = vacancy.vacancy_id || vacancy.id
-      return `${window.location.origin}/vacancy/${vacancyId}`
+      // Ссылка ведет на начальную страницу кандидата с ID вакансии
+      return `http://localhost:3000/${vacancyId}`
     },
 
     // Показ QR-кода для ссылки (опционально)
@@ -500,14 +465,17 @@ export default {
 </script>
 
 <style scoped>
-.btn-warning {
-  background: #f59e0b;
+.btn-secondary {
+  background: #6c757d;
   color: white;
   border: none;
+  cursor: not-allowed;
 }
 
-.btn-warning:hover {
-  background: #d97706;
+.btn-secondary:hover {
+  background: #6c757d;
+  transform: none;
+  box-shadow: none;
 }
 
 .vacancies-view {
