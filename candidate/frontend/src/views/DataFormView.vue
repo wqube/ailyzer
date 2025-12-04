@@ -1,5 +1,51 @@
 <template>
   <div class="data-form-view">
+    <!-- Модальное окно с информацией о вакансии -->
+    <div v-if="showVacancyModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>📋 Информация о вакансии</h3>
+          <button class="modal-close" @click="closeVacancyModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="vacancyData" class="vacancy-details-modal">
+            <h2>{{ vacancyData.title }}</h2>
+            <p class="vacancy-level">
+              <strong>Уровень:</strong> {{ getLevelText(vacancyData.level) }}
+            </p>
+            <div class="vacancy-description">
+              <p><strong>Описание:</strong></p>
+              <p>{{ vacancyData.description }}</p>
+            </div>
+            <div class="vacancy-requirements">
+              <p><strong>Требования:</strong></p>
+              <p>{{ vacancyData.requirements }}</p>
+            </div>
+          </div>
+          
+          <div v-if="loadingVacancy" class="loading-modal">
+            <div class="loading-spinner"></div>
+            <p>Загрузка информации о вакансии...</p>
+          </div>
+          
+          <div v-if="vacancyError" class="error-modal">
+            <p>⚠️ {{ vacancyError }}</p>
+            <p>Вы все еще можете заполнить форму для общего анализа резюме.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeVacancyModal" class="btn btn-primary">Понятно</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Кнопка для просмотра информации о вакансии (если есть) -->
+    <div v-if="vacancyData && !showVacancyModal" class="vacancy-button-container">
+      <button @click="openVacancyModal" class="btn btn-outline vacancy-info-btn">
+        📋 Просмотреть информацию о вакансии
+      </button>
+    </div>
+
     <header class="header">
       <div class="container">
         <div class="logo">
@@ -14,36 +60,7 @@
     <main class="main-content">
       <section class="form-section">
         <div class="container">
-          <!-- Информация о вакансии -->
-          <div v-if="vacancyData" class="vacancy-info-card">
-            <h3>📋 Отклик на вакансию</h3>
-            <div class="vacancy-details">
-              <h2>{{ vacancyData.title }}</h2>
-              <p class="vacancy-level">
-                <strong>Уровень:</strong> {{ getLevelText(vacancyData.level) }}
-              </p>
-              <div class="vacancy-description">
-                <p><strong>Описание:</strong></p>
-                <p>{{ vacancyData.description }}</p>
-              </div>
-              <div class="vacancy-requirements">
-                <p><strong>Требования:</strong></p>
-                <p>{{ vacancyData.requirements }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Индикатор загрузки вакансии -->
-          <div v-if="loadingVacancy" class="loading-card">
-            <div class="loading-spinner"></div>
-            <p>Загрузка информации о вакансии...</p>
-          </div>
-
-          <!-- Сообщение об ошибке -->
-          <div v-if="vacancyError" class="error-card">
-            <p>⚠️ {{ vacancyError }}</p>
-            <p>Вы все еще можете заполнить форму для общего анализа резюме.</p>
-          </div>
+          <!-- Убрали блок с информацией о вакансии из основного контента -->
 
           <!-- Форма заполнения данных -->
           <div class="form-card">
@@ -89,6 +106,31 @@
                   >
                 </div>
               </div>
+
+              <!-- НОВЫЕ НЕОБЯЗАТЕЛЬНЫЕ ПОЛЯ -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="experience">Опыт работы (лет)</label>
+                  <input 
+                    type="number" 
+                    id="experience" 
+                    v-model="formData.experience" 
+                    placeholder="Например, 5"
+                    min="0"
+                  >
+                </div>
+                <div class="form-group">
+                  <label for="salaryExpectation">Желаемая зарплата (RUB)</label>
+                  <input 
+                    type="number" 
+                    id="salaryExpectation" 
+                    v-model="formData.salaryExpectation" 
+                    placeholder="Например, 150000"
+                    min="0"
+                  >
+                </div>
+              </div>
+              <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
               
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary btn-full">
@@ -105,11 +147,8 @@
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="container">
-        <p>&copy; 2025 AIlyzer. ARPL Team.</p>
-      </div>
-    </footer>
+    <Footer>
+    </Footer>
   </div>
 </template>
 
@@ -118,6 +157,7 @@ import { ref, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '@/utils/api'
+import Footer from '../components/Footer.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -127,11 +167,14 @@ const formData = ref({
   fullName: '',
   email: '',
   phone: '',
+  experience: null,
+  salaryExpectation: null,
 })
 
 const vacancyData = ref(null)
 const loadingVacancy = ref(false)
 const vacancyError = ref('')
+const showVacancyModal = ref(false) // Новое состояние для модального окна
 
 // Получение текста уровня вакансии
 const getLevelText = (level) => {
@@ -150,11 +193,9 @@ const loadVacancyData = async (vacancyId) => {
   vacancyError.value = ''
   
   try {
-    // ⚠️ ИСПРАВЛЕНИЕ: Используем api.getVacancy (как в обновленном api.js)
     const data = await api.getVacancyById(vacancyId)
     vacancyData.value = data
     
-    // ⚠️ ИСПРАВЛЕНИЕ: Используем универсальный setUserData
     appStore.setUserData({
         vacancyId: parseInt(vacancyId),
         vacancyData: data
@@ -175,14 +216,28 @@ const loadVacancyData = async (vacancyId) => {
   }
 }
 
+// Открытие модального окна
+const openVacancyModal = () => {
+  showVacancyModal.value = true
+}
+
+// Закрытие модального окна
+const closeVacancyModal = () => {
+  showVacancyModal.value = false
+}
+
 onMounted(async () => {
   appStore.loadFromStorage()
   
-  // Загружаем существующие данные пользователя
-  if (appStore.userData) {
-    formData.value.fullName = appStore.userData.fullName || ''
-    formData.value.email = appStore.userData.email || ''
-    formData.value.phone = appStore.userData.phone || ''
+  // Загружаем существующие данные пользователя/резюме
+  const storedData = appStore.resumeData || appStore.userData
+
+  if (storedData) {
+    formData.value.fullName = storedData.fullName || ''
+    formData.value.email = storedData.email || ''
+    formData.value.phone = storedData.phone || ''
+    formData.value.experience = storedData.experience || null
+    formData.value.salaryExpectation = storedData.salaryExpectation || null
   }
   
   // Проверяем наличие ID вакансии в URL
@@ -211,11 +266,13 @@ onMounted(async () => {
 })
 
 const submitForm = () => {
-  // Сохраняем контакты
+  // Сохраняем контакты и опциональные поля
   appStore.setResumeData({
     fullName: formData.value.fullName,
     email: formData.value.email,
     phone: formData.value.phone,
+    experience: formData.value.experience ? parseInt(formData.value.experience) : null,
+    salaryExpectation: formData.value.salaryExpectation ? parseInt(formData.value.salaryExpectation) : null,
     resumeText: appStore.userData.resumeText ?? ''
   })
 
@@ -223,16 +280,166 @@ const submitForm = () => {
   const vacancyId = route.params.id
 
   if (vacancyId) {
-    // Если есть ID вакансии, переходим с ним
     router.push(`/resume-analysis/${vacancyId}`)
   } else {
-    // Иначе обычный переход
     router.push('/resume-analysis')
   }
 }
 </script>
 
 <style scoped>
+*{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Стили для кнопки просмотра вакансии */
+.vacancy-button-container {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.vacancy-info-btn {
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 2px solid #10b981;
+  color: #10b981;
+  font-weight: 600;
+  padding: 10px 15px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.vacancy-info-btn:hover {
+  background-color: #10b981;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+}
+
+/* Модальное окно */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eee;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-radius: 12px 12px 0 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.vacancy-details-modal h2 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 1.8rem;
+}
+
+.vacancy-details-modal .vacancy-level {
+  margin: 0 0 20px 0;
+  font-size: 1.1rem;
+  color: #555;
+}
+
+.vacancy-details-modal .vacancy-description,
+.vacancy-details-modal .vacancy-requirements {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #10b981;
+}
+
+.vacancy-details-modal .vacancy-description p,
+.vacancy-details-modal .vacancy-requirements p {
+  margin: 8px 0;
+  line-height: 1.6;
+  color: #555;
+}
+
+.loading-modal,
+.error-modal {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.loading-modal .loading-spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #10b981;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+.error-modal {
+  color: #d32f2f;
+}
+
+.modal-footer {
+  padding: 20px 24px;
+  border-top: 1px solid #eee;
+  text-align: right;
+}
+
+/* Основные стили */
 .data-form-view {
   min-height: 100vh;
   display: flex;
@@ -240,90 +447,6 @@ const submitForm = () => {
   background-color: #f8f9fa;
 }
 
-/* Карточка с информацией о вакансии */
-.vacancy-info-card {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.2);
-}
-
-.vacancy-info-card h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.2rem;
-  opacity: 0.9;
-}
-
-.vacancy-details h2 {
-  margin: 0 0 1rem 0;
-  font-size: 2rem;
-  font-weight: 700;
-}
-
-.vacancy-level {
-  margin: 0.5rem 0;
-  font-size: 1.1rem;
-}
-
-.vacancy-description,
-.vacancy-requirements {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  backdrop-filter: blur(10px);
-}
-
-.vacancy-description p,
-.vacancy-requirements p {
-  margin: 0.5rem 0;
-  line-height: 1.6;
-}
-
-/* Индикатор загрузки */
-.loading-card {
-  background: white;
-  padding: 3rem;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.loading-spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #10b981;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Карточка с ошибкой */
-.error-card {
-  background: #fee;
-  border: 2px solid #fcc;
-  color: #c33;
-  padding: 1.5rem;
-  border-radius: 10px;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 12px rgba(204, 51, 51, 0.1);
-}
-
-.error-card p {
-  margin: 0.5rem 0;
-  line-height: 1.6;
-}
-
-/* Основные стили */
 .main-content {
   flex: 1;
   display: flex;
@@ -489,6 +612,28 @@ const submitForm = () => {
   width: 100%;
 }
 
+/* Анимации */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Footer */
 .footer {
   background-color: #333;
@@ -502,6 +647,34 @@ const submitForm = () => {
 }
 
 @media (max-width: 768px) {
+  .vacancy-button-container {
+    position: static;
+    margin: 20px auto;
+    text-align: center;
+  }
+  
+  .vacancy-info-btn {
+    width: 100%;
+    margin: 0 20px;
+  }
+  
+  .modal-content {
+    width: 95%;
+    max-height: 85vh;
+  }
+  
+  .modal-header {
+    padding: 15px 20px;
+  }
+  
+  .modal-body {
+    padding: 20px;
+  }
+  
+  .vacancy-details-modal h2 {
+    font-size: 1.5rem;
+  }
+  
   .header .container {
     flex-direction: column;
     gap: 15px;
@@ -523,14 +696,6 @@ const submitForm = () => {
   
   .form-card h2 {
     font-size: 1.5em;
-  }
-
-  .vacancy-info-card {
-    padding: 1.5rem;
-  }
-
-  .vacancy-details h2 {
-    font-size: 1.5rem;
   }
 }
 </style>

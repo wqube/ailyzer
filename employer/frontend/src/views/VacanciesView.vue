@@ -12,16 +12,16 @@
     <div class="vacancies-content">
       <div class="container">
         <!-- Индикатор загрузки -->
-        <div v-if="loading && vacancies.length === 0" class="loading-state">
+        <div v-if="loading" class="loading-state">
           <div class="loading-spinner"></div>
-          <p>Загрузка вакансий...</p>
+          <p>{{ authStatusMessage }}</p>
         </div>
 
         <!-- Список вакансий -->
         <div class="vacancies-list" v-else-if="vacancies.length > 0">
           <div 
             v-for="vacancy in vacancies" 
-            :key="vacancy.vacancy_id || vacancy.id" 
+            :key="vacancy.id" 
             class="vacancy-card"
           >
             <div class="vacancy-header">
@@ -32,9 +32,12 @@
             </div>
             
             <div class="vacancy-info">
+              <!-- Обновлено: теперь используем vacancy.id как основной ключ -->
+              <p><strong>ID:</strong> {{ vacancy.id }}</p>
               <p><strong>Уровень:</strong> {{ getLevelText(vacancy.level) }}</p>
               <p><strong>Описание:</strong> {{ vacancy.description }}</p>
               <p><strong>Требования:</strong> {{ vacancy.requirements }}</p>
+              <!-- Используем created_at, который теперь будет меткой времени Firestore -->
               <p><strong>Создана:</strong> {{ formatDate(vacancy.created_at) }}</p>
               <p><strong>Ссылка для кандидатов:</strong></p>
 
@@ -43,14 +46,14 @@
                   :value="getVacancyPublicLink(vacancy)" 
                   readonly 
                   class="link-input"
-                  ref="linkInput"
+                  :ref="el => { if (el) linkInputs[vacancy.id] = el }"
                 >
                 <button 
                   @click="copyVacancyLink(vacancy)" 
                   class="btn btn-outline btn-small"
-                  :class="{ 'copied': copiedLinkId === (vacancy.vacancy_id || vacancy.id) }"
+                  :class="{ 'copied': copiedLinkId === vacancy.id }"
                 >
-                  {{ copiedLinkId === (vacancy.vacancy_id || vacancy.id) ? 'Скопировано!' : 'Копировать' }}
+                  {{ copiedLinkId === vacancy.id ? 'Скопировано!' : 'Копировать' }}
                 </button>
               </div>
             </div>
@@ -67,18 +70,28 @@
               <button 
                 @click="editVacancy(vacancy)" 
                 class="btn btn-outline"
-                :disabled="actionLoading"
+                :disabled="actionLoading || vacancy.status === 'closed'"
               >
                 Редактировать
               </button>
 
               <button 
                 @click="closeVacancy(vacancy)" 
-                class="btn btn-danger"
+                class="btn btn-secondary"
                 :disabled="actionLoading || vacancy.status === 'closed'"
-                :class="{ 'btn-secondary': vacancy.status === 'closed' }"
+                :class="{ 'btn-primary': vacancy.status !== 'closed' }"
                 >
               {{ vacancy.status === 'closed' ? 'Закрыта' : 'Закрыть' }}
+              </button>
+
+              <!-- КНОПКА ПОЛНОГО УДАЛЕНИЯ -->
+              <button 
+                @click="permanentlyDeleteVacancy(vacancy)" 
+                class="btn btn-danger btn-small delete-btn"
+                :disabled="actionLoading"
+                title="Полное удаление вакансии из базы данных"
+              >
+                Удалить
               </button>
             </div>
           </div>
@@ -95,7 +108,7 @@
         </div>
       </div>
     </div>
-
+    
     <!-- Модальное окно создания/редактирования вакансии -->
     <div v-if="showCreateForm" class="modal-overlay">
       <div class="modal-content">
@@ -177,6 +190,18 @@
       </div>
     </div>
 
+    <!-- УВЕДОМЛЕНИЕ ОБ ОТМЕНЕ УДАЛЕНИЯ -->
+    <div v-if="showUndo" class="undo-notification">
+      <div class="container undo-container">
+        <span>
+          Вакансия удалена. Вы можете отменить это действие в течение 
+          <strong>{{ deletionTimer }}</strong> сек.
+        </span>
+        <button @click="undoDelete" class="btn btn-undo">
+          Отменить
+        </button>
+      </div>
+    </div>
     <!-- Уведомления об ошибках -->
     <div v-if="errorMessage" class="error-notification">
       <div class="container">
@@ -190,230 +215,408 @@
 </template>
 
 <script>
-import { api, authUtils } from '@/utils/api'
+// Импорты Firebase
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { 
+  getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, updateDoc, 
+  query, orderBy, serverTimestamp 
+} from 'firebase/firestore';
+
+// Глобальные переменные Canvas (предполагаем, что они доступны)
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// Заменяем импорт, так как используем прямые вызовы Firestore
+// import { api, authUtils } from '@/utils/api' 
 
 export default {
   name: 'VacanciesView',
   data() {
     return {
+      // Firebase State
+      db: null,
+      auth: null,
+      userId: null,
+      isAuthReady: false,
+      unsubscribe: null, // Для хранения функции отписки от onSnapshot
+      authStatusMessage: 'Инициализация...',
+      
+      // Vacancy State
       vacancies: [],
       showCreateForm: false,
-      loading: false,
+      loading: true, // Устанавливаем в true до готовности аутентификации
       formLoading: false,
       actionLoading: false,
       errorMessage: '',
-      copiedLinkId: null, // Для отслеживания скопированной ссылки
+      copiedLinkId: null, 
       editingVacancy: null,
       vacancyForm: {
         title: '',
         level: 'middle',
         description: '',
         requirements: ''
-      }
+      },
+      linkInputs: {},
+
+      // Логика отмены удаления
+      deletedVacancy: null,
+      deletionTimer: 10,
+      timerInterval: null,
+      showUndo: false,
     }
   },
   methods: {
-    // Загрузка вакансий
-    async loadVacancies() {
-      this.loading = true
-      this.errorMessage = ''
-      
+    /**
+     * Возвращает ссылку на публичную коллекцию вакансий.
+     */
+    getVacanciesCollectionRef() {
+      if (!this.db) throw new Error("Firestore не инициализирован.");
+      // Путь: /artifacts/{appId}/public/data/vacancies
+      return collection(this.db, `artifacts/${appId}/public/data/vacancies`);
+    },
+
+    /**
+     * Инициализирует Firebase и настраивает аутентификацию.
+     */
+    async initializeFirebase() {
       try {
-        const response = await api.getMyVacancies()
-        this.vacancies = response
-        
-      } catch (error) {
-        console.error('Error loading vacancies:', error)
-        this.errorMessage = this.getErrorMessage(error)
-        
-        // Если ошибка авторизации - перенаправляем на логин
-        if (error.message.includes('401') || error.message.includes('authentication')) {
-          this.$router.push({ name: 'employer-login' })
+        if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+          this.errorMessage = "Конфигурация Firebase отсутствует.";
+          return;
         }
-      } finally {
-        this.loading = false
+        
+        const app = initializeApp(firebaseConfig);
+        this.db = getFirestore(app);
+        this.auth = getAuth(app);
+        
+        // Аутентификация
+        if (initialAuthToken) {
+            await signInWithCustomToken(this.auth, initialAuthToken);
+        } else {
+            await signInAnonymously(this.auth);
+        }
+        
+        onAuthStateChanged(this.auth, (user) => {
+            this.userId = user?.uid || null;
+            this.isAuthReady = true;
+            this.loading = false;
+            if (user) {
+                this.authStatusMessage = 'Загрузка данных...';
+                this.setupRealTimeListener(); 
+            } else {
+                this.authStatusMessage = 'Не удалось аутентифицировать пользователя.';
+                this.errorMessage = this.authStatusMessage;
+            }
+        });
+
+      } catch (error) {
+        this.errorMessage = `Ошибка инициализации Firebase: ${error.message}`;
+        this.loading = false;
+        this.isAuthReady = true;
       }
     },
 
+    // === ЛОГИКА РЕАЛЬНОГО ВРЕМЕНИ (onSnapshot) ===
+
+    /**
+     * Настраивает слушатель реального времени для обновления списка вакансий.
+     * Заменяет loadVacancies().
+     */
+    setupRealTimeListener() {
+      if (!this.isAuthReady || !this.userId) return;
+
+      const q = query(this.getVacanciesCollectionRef(), orderBy('created_at', 'desc'));
+
+      // onSnapshot автоматически обновляет this.vacancies при ЛЮБОМ изменении в БД
+      this.unsubscribe = onSnapshot(q, (snapshot) => {
+        this.errorMessage = ''; 
+        const vacanciesData = [];
+        snapshot.forEach(doc => {
+          // Создаем объект с ID документа
+          vacanciesData.push({
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+        
+        // Сортируем в памяти для надежности, хотя запрос уже сортирует
+        vacanciesData.sort((a, b) => {
+            const dateA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+            const dateB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+            return dateB - dateA; // Новые вакансии сверху
+        });
+
+        this.vacancies = vacanciesData;
+        this.loading = false;
+        this.authStatusMessage = '';
+
+      }, (error) => {
+        this.errorMessage = "Ошибка при получении обновлений вакансий: " + error.message;
+        this.loading = false;
+      });
+    },
+
+    // === ЛОГИКА CRUD (Теперь Firestore) ===
+    
     // Создание/обновление вакансии
     async saveVacancy() {
-      console.log('=== SAVE VACANCY CALLED ===')
-      console.log('Editing vacancy:', this.editingVacancy)
-      
-      this.formLoading = true
-      this.errorMessage = ''
+      if (!this.isAuthReady || !this.userId) {
+          this.errorMessage = "Не авторизован.";
+          return;
+      }
+
+      this.formLoading = true;
+      this.errorMessage = '';
       
       try {
+        const dataToSave = {
+          ...this.vacancyForm,
+          // Убедимся, что status присутствует для новых вакансий
+          status: this.editingVacancy ? this.editingVacancy.status : 'active',
+          // Добавляем ID создателя для безопасности (хотя используем публичную коллекцию)
+          creatorId: this.userId, 
+        };
+
         if (this.editingVacancy) {
-          // ИСПРАВЛЕНО: используем vacancy_id вместо id
-          const vacancyId = this.editingVacancy.vacancy_id || this.editingVacancy.id
-          console.log('Vacancy ID for update:', vacancyId)
+          const vacancyId = this.editingVacancy.id;
           
-          const updatedVacancy = await api.updateVacancy(vacancyId, this.vacancyForm)
-          console.log('Update response:', updatedVacancy)
+          await updateDoc(doc(this.getVacanciesCollectionRef(), vacancyId), dataToSave);
           
-          // Обновляем вакансию в списке - тоже исправляем ID
-          const index = this.vacancies.findIndex(v => 
-            (v.vacancy_id || v.id) === (this.editingVacancy.vacancy_id || this.editingVacancy.id)
-          )
-          if (index !== -1) {
-            this.vacancies.splice(index, 1, updatedVacancy)
-          }
         } else {
-          // Создание новой вакансии
-          const newVacancy = await api.createVacancy(this.vacancyForm)
-          console.log('Create response:', newVacancy)
-          this.vacancies.unshift(newVacancy)
+          // Для новой вакансии
+          await setDoc(doc(this.getVacanciesCollectionRef()), {
+            ...dataToSave,
+            created_at: serverTimestamp() // Метка времени создания
+          });
         }
         
-        this.closeModal()
-        this.showSuccessMessage(this.editingVacancy ? 'Вакансия обновлена' : 'Вакансия создана')
+        // onSnapshot автоматически обновит this.vacancies
+        this.closeModal();
+        this.showSuccessMessage(this.editingVacancy ? 'Вакансия обновлена' : 'Вакансия создана');
         
       } catch (error) {
-        console.error('Error saving vacancy:', error)
-        this.errorMessage = this.getErrorMessage(error)
+        console.error('Error saving vacancy:', error);
+        this.errorMessage = this.getErrorMessage(error);
       } finally {
-        this.formLoading = false
+        this.formLoading = false;
       }
     },
-
-    // Редактирование вакансии
-    editVacancy(vacancy) {
-      console.log('=== EDIT VACANCY ===')
-      console.log('Vacancy object:', vacancy)
+    
+    // Закрытие вакансии (изменение статуса на 'closed')
+    async closeVacancy(vacancy) {
+      if (!this.isAuthReady || !this.userId) return;
+      const vacancyId = vacancy.id;
       
-      this.editingVacancy = vacancy
-      this.vacancyForm = { 
-        title: vacancy.title,
-        level: vacancy.level,
-        description: vacancy.description,
-        requirements: vacancy.requirements
-      }
-      this.showCreateForm = true
-    },
-
-    // Просмотр кандидатов
-    viewCandidates(vacancy) {
-      const vacancyId = vacancy.vacancy_id || vacancy.id
-      this.$router.push({ 
-        name: 'employer-candidates', 
-        params: { vacancyId: vacancyId } 
-      })
-    },
-
-    // Закрытие вакансии (вместо удаления)
-  async closeVacancy(vacancy) {
-    console.log('=== CLOSE VACANCY CALLED ===')
-    console.log('Vacancy object:', vacancy)
-    
-    const vacancyId = vacancy.vacancy_id || vacancy.id
-    console.log('Vacancy ID to close:', vacancyId)
-    
-    if (vacancy.status === 'closed') {
-      alert('Вакансия уже закрыта')
-      return
-    }
-    
-    if (!confirm('Вы уверены, что хотите закрыть эту вакансию? После закрытия кандидаты не смогут на нее откликаться.')) {
-      return
-    }
-
-    this.actionLoading = true
-    this.errorMessage = ''
-    
-    try {
-      // Обновляем статус вакансии на 'closed'
-      const updatedVacancy = await api.updateVacancy(vacancyId, {
-        ...vacancy,
-        status: 'closed'
-      })
-      console.log('Close successful:', updatedVacancy)
-      
-      // Обновляем вакансию в списке
-      const index = this.vacancies.findIndex(v => 
-        (v.vacancy_id || v.id) === vacancyId
-      )
-      if (index !== -1) {
-        this.vacancies.splice(index, 1, updatedVacancy)
+      if (vacancy.status === 'closed') {
+        // Заменяем alert на console.log (в соответствии с инструкциями)
+        console.log('Вакансия уже закрыта'); 
+        return;
       }
       
-      this.showSuccessMessage('Вакансия закрыта')
-      
-    } catch (error) {
-      console.error('Error closing vacancy:', error)
-      this.errorMessage = this.getErrorMessage(error)
-    } finally {
-      this.actionLoading = false
-    }
-  },
-    
-    // Копирование ссылки в буфер обмена
-    async copyVacancyLink(vacancy) {
-      const link = this.getVacancyPublicLink(vacancy)
-      const vacancyId = vacancy.vacancy_id || vacancy.id
+      if (!window.confirm('Вы уверены, что хотите закрыть эту вакансию? Кандидаты больше не смогут на нее откликаться.')) {
+        return;
+      }
+
+      this.actionLoading = true;
+      this.errorMessage = '';
       
       try {
-        await navigator.clipboard.writeText(link)
-        this.copiedLinkId = vacancyId
+        await updateDoc(doc(this.getVacanciesCollectionRef(), vacancyId), {
+          status: 'closed'
+        });
         
-        // Сбрасываем статус "Скопировано" через 2 секунды
+        // onSnapshot автоматически обновит список
+        this.showSuccessMessage('Вакансия закрыта');
+        
+      } catch (error) {
+        console.error('Error closing vacancy:', error);
+        this.errorMessage = this.getErrorMessage(error);
+      } finally {
+        this.actionLoading = false;
+      }
+    },
+
+
+    // === ЛОГИКА УДАЛЕНИЯ И ВОССТАНОВЛЕНИЯ (Fix: Теперь использует onSnapshot) ===
+    
+    // Полное удаление вакансии (с возможностью отмены)
+    permanentlyDeleteVacancy(vacancy) {
+      const vacancyId = vacancy.id;
+      
+      // Заменяем confirm на window.confirm для совместимости
+      if (!window.confirm('ВНИМАНИЕ! Вы уверены, что хотите удалить эту вакансию? У вас будет 10 секунд на отмену.')) {
+        return;
+      }
+
+      // 1. Очищаем предыдущий таймер, если он был
+      this.clearDeleteTimer();
+      
+      // 2. Сохраняем удаляемую вакансию.
+      this.deletedVacancy = vacancy;
+
+      // 3. *ВРЕМЕННО* удаляем из локального списка, чтобы обеспечить визуальный эффект до истечения таймера.
+      const index = this.vacancies.findIndex(v => v.id === vacancyId);
+      if (index !== -1) {
+        this.vacancies.splice(index, 1);
+      }
+
+      // 4. Запускаем таймер и уведомление
+      this.deletionTimer = 10;
+      this.showUndo = true;
+      this.timerInterval = setInterval(() => {
+        this.deletionTimer -= 1;
+        
+        if (this.deletionTimer <= 0) {
+          this.finalizeDelete();
+        }
+      }, 1000);
+    },
+    
+    // Окончательное удаление (когда таймер истек) - ИСПОЛЬЗУЕМ deleteDoc
+    async finalizeDelete() {
+      console.log('Finalizing permanent delete...');
+      
+      this.clearDeleteTimer();
+      this.actionLoading = true;
+      
+      if (!this.deletedVacancy) {
+        this.actionLoading = false;
+        return;
+      }
+
+      try {
+        const vacancyId = this.deletedVacancy.id;
+        // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Вызываем deleteDoc. onSnapshot позаботится об обновлении UI.
+        await deleteDoc(doc(this.getVacanciesCollectionRef(), vacancyId));
+
+        this.showSuccessMessage(`Вакансия "${this.deletedVacancy.title}" окончательно удалена.`);
+      } catch (error) {
+        console.error('Error finalizing deletion:', error);
+        
+        // В случае ошибки, возвращаем вакансию в локальный список, чтобы onSnapshot ее не удалил,
+        // пока пользователь не перезагрузит/пока не сработает onSnapshot с актуальным состоянием.
+        this.vacancies.push(this.deletedVacancy); 
+        this.vacancies.sort((a, b) => {
+            const dateA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+            const dateB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+            return dateB - dateA;
+        });
+
+        this.errorMessage = `Не удалось окончательно удалить вакансию. ${this.getErrorMessage(error)}`;
+      } finally {
+        this.deletedVacancy = null;
+        this.actionLoading = false;
+      }
+    },
+    
+    // Отмена удаления (нажата кнопка)
+    undoDelete() {
+      if (!this.deletedVacancy) return;
+
+      console.log('Undo delete action...');
+      
+      // 1. Очищаем таймер и уведомление
+      this.clearDeleteTimer();
+      
+      // 2. Возвращаем вакансию в локальный список
+      // Поскольку onSnapshot еще не сработал на удаление (потому что удаление еще не было выполнено),
+      // она останется в БД и отобразится на фронтенде.
+      this.vacancies.push(this.deletedVacancy);
+      this.vacancies.sort((a, b) => {
+          const dateA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+          const dateB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+          return dateB - dateA;
+      });
+      
+      this.showSuccessMessage(`Удаление вакансии "${this.deletedVacancy.title}" отменено.`);
+      
+      // 3. Сбрасываем временные данные
+      this.deletedVacancy = null;
+    },
+
+    // Очистка интервала таймера
+    clearDeleteTimer() {
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+      this.showUndo = false;
+    },
+
+    // Копирование ссылки в буфер обмена
+    async copyVacancyLink(vacancy) {
+      const link = this.getVacancyPublicLink(vacancy);
+      const vacancyId = vacancy.id; // Используем .id
+      
+      try {
+        await navigator.clipboard.writeText(link);
+        this.copiedLinkId = vacancyId;
+        
         setTimeout(() => {
-          this.copiedLinkId = null
-        }, 2000)
+          this.copiedLinkId = null;
+        }, 2000);
         
       } catch (err) {
-        // Fallback для старых браузеров
-        const input = this.$refs.linkInput[this.vacancies.indexOf(vacancy)]
-        input.select()
-        document.execCommand('copy')
-        this.copiedLinkId = vacancyId
-        
-        setTimeout(() => {
-          this.copiedLinkId = null
-        }, 2000)
+        const input = this.linkInputs[vacancyId];
+        if (input) {
+            input.select();
+            document.execCommand('copy');
+            this.copiedLinkId = vacancyId;
+            
+            setTimeout(() => {
+              this.copiedLinkId = null;
+            }, 2000);
+        }
       }
     },
 
     // Закрытие модального окна
     closeModal() {
-      this.showCreateForm = false
-      this.editingVacancy = null
+      this.showCreateForm = false;
+      this.editingVacancy = null;
       this.vacancyForm = {
         title: '',
         level: 'middle',
         description: '',
         requirements: ''
-      }
-      this.errorMessage = ''
+      };
+      this.errorMessage = '';
+    },
+
+    // Просмотр кандидатов
+    viewCandidates(vacancy) {
+      const vacancyId = vacancy.id; // Используем .id
+      this.$router.push({ 
+        name: 'employer-candidates', 
+        params: { vacancyId: vacancyId } 
+      });
     },
 
     // Показать успешное сообщение
     showSuccessMessage(message) {
-      // Здесь можно добавить красивые уведомления
-      console.log(message)
-      // Или интегрировать с системой уведомлений, если есть
+      console.log(`УСПЕХ: ${message}`);
     },
 
     // Обработка ошибок
     getErrorMessage(error) {
-      const message = error.message || 'Произошла ошибка'
+      const message = error.message || 'Произошла ошибка';
       
-      if (message.includes('401') || message.includes('authentication')) {
-        return 'Ошибка авторизации. Пожалуйста, войдите снова.'
-      } else if (message.includes('network') || message.includes('fetch')) {
-        return 'Ошибка соединения. Проверьте подключение к интернету.'
-      } else if (message.includes('500')) {
-        return 'Внутренняя ошибка сервера. Попробуйте позже.'
+      // Можно убрать специфическую обработку 401/500, так как мы используем Firestore
+      if (message.includes('permission-denied') || message.includes('auth')) {
+          return 'Ошибка доступа (permission-denied). Проверьте правила безопасности Firestore.';
       }
       
-      return message
+      return message;
     },
 
     // Форматирование даты
-    formatDate(dateString) {
-      if (!dateString) return ''
-      const date = new Date(dateString)
-      return date.toLocaleDateString('ru-RU')
+    formatDate(date) {
+      if (!date) return '—';
+      // Если это метка времени Firestore, преобразуем ее в объект Date
+      const dateObj = date.toDate ? date.toDate() : new Date(date);
+      return dateObj.toLocaleDateString('ru-RU');
     },
 
     //////////////////////// Вспомогательные методы ////////////////////////
@@ -422,8 +625,8 @@ export default {
         active: 'Активна',
         closed: 'Закрыта',
         draft: 'Черновик'
-      }
-      return statusMap[status] || status
+      };
+      return statusMap[status] || status;
     },
 
     getLevelText(level) {
@@ -432,34 +635,35 @@ export default {
         middle: 'Middle', 
         senior: 'Senior',
         lead: 'Lead'
-      }
-      return levelMap[level] || level
+      };
+      return levelMap[level] || level;
     },
 
     //////////////////////// Генерация публичной ссылки на вакансию ////////////////////////
     getVacancyPublicLink(vacancy) {
-      const vacancyId = vacancy.vacancy_id || vacancy.id
-      // Ссылка ведет на начальную страницу кандидата с ID вакансии
-      return `http://localhost:3000/${vacancyId}`
+      const vacancyId = vacancy.id; // Используем .id
+      // Здесь вам нужно подставить ваш реальный публичный домен, 
+      // но для примера используем заглушку
+      return `http://localhost:3000/vacancies/${vacancyId}`; 
     },
-
-    // Показ QR-кода для ссылки (опционально)
-    showQRCode(vacancy) {
-      const link = this.getVacancyPublicLink(vacancy)
-      // Здесь можно интегрировать библиотеку для генерации QR-кода
-      console.log('QR Code for:', link)
-      // Или открыть модальное окно с QR-кодом
-    }
   },
 
   mounted() {
-    // Проверяем авторизацию
-    if (!authUtils.isAuthenticated()) {
-      this.$router.push({ name: 'employer-login' })
-      return
-    }
+    this.initializeFirebase();
     
-    this.loadVacancies()
+    // Удаляем старую проверку, так как она заменяется на onAuthStateChanged
+    // if (!authUtils.isAuthenticated()) {
+    //   this.$router.push({ name: 'employer-login' })
+    //   return
+    // }
+  },
+  
+  // Отписка от слушателя при уничтожении компонента
+  beforeDestroy() {
+    this.clearDeleteTimer();
+    if (this.unsubscribe) {
+        this.unsubscribe();
+    }
   }
 }
 </script>
@@ -802,5 +1006,90 @@ export default {
   .vacancy-link {
     flex-direction: column;
   }
+}
+
+.undo-notification {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  min-width: 400px;
+  text-align: center;
+}
+
+.undo-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+.btn-undo {
+    background-color: #ff9800;
+    color: #333;
+    border: none;
+    padding: 8px 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-undo:hover {
+    background-color: #ffa726;
+}
+
+/* Общие стили уведомлений (взято из предыдущих контекстов) */
+.error-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #f44336;
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    width: 80%;
+    max-width: 600px;
+}
+
+.error-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-close-small {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    margin-left: 10px;
+}
+
+/* Статусы вакансий */
+.vacancy-status {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.vacancy-status.active {
+  background-color: #e6ffed;
+  color: #00873c;
+}
+.vacancy-status.closed {
+  background-color: #fcebeb;
+  color: #c90000;
 }
 </style>

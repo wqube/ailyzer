@@ -128,19 +128,17 @@
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="container">
-        <p>&copy; 2025 AIlyzer. ARPL Team.</p>
-      </div>
-    </footer>
+    <Footer></Footer>
   </div>
 </template>
+
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useRouter, useRoute } from 'vue-router'
-import { api } from '@/utils/api' // Предполагается, что api.getVacancy существует
+import { api } from '@/utils/api' 
+import Footer from '../components/Footer.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -191,18 +189,20 @@ onMounted(async () => {
     appStore.setUserData({ vacancyId: idInt })
     
     // 2. Загружаем данные вакансии, если они еще не загружены или ID изменился
+    // ⚠️ ИСПРАВЛЕНИЕ: Используем api.getVacancyById, как в обновленном api.js
     if (!userData.value.vacancyData || userData.value.vacancyData.vacancy_id !== idInt) {
       try {
         console.log(`Fetching vacancy data for ID: ${idInt}`)
         // Имитация загрузки
         isLoading.value = true 
         
-        const response = await api.getVacancy(idInt) 
+        const response = await api.getVacancyById(idInt) 
         vacancyData.value = response
         appStore.setUserData({ vacancyData: response }) // Сохраняем в store
         console.log('Successfully fetched and saved vacancy data:', vacancyData.value)
       } catch (error) {
         console.error('Error fetching vacancy data:', error)
+        // ⚠️ ИСПРАВЛЕНИЕ: Используем alert() для уведомления пользователя об ошибке, так как здесь нет модального окна
         alert(`Ошибка загрузки данных вакансии: ${error.message}. Убедитесь, что ID (${vacancyId}) корректен.`)
         vacancyData.value = null
       } finally {
@@ -257,18 +257,18 @@ const analyzeResume = async () => {
 
   isLoading.value = true
   analysisResult.value = null
+  
+  let parsedResumeText = "";
+  let newApplicationId = null; 
 
   try {
     console.log('=== STARTING RESUME ANALYSIS ===')
     
-    // 1. Загружаем и анализируем резюме
+    // 1. Загружаем и анализируем резюме (Получаем распарсенный текст)
     const formData = new FormData()
     formData.append('resume', selectedFile.value)
     formData.append('fullname', userData.value.fullName)
-    
-    // !!! КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Отправляем vacancy_id вместо interview_topic
     formData.append('vacancy_id', userData.value.vacancyId) 
-    
     formData.append('select_language', 'ru')
 
     console.log('Uploading resume for analysis...')
@@ -276,6 +276,12 @@ const analyzeResume = async () => {
     console.log('Analysis result:', result)
 
     // 2. Обрабатываем результат анализа
+    parsedResumeText = 
+      result.parsed_text
+      || result.resume_text
+      || result.details
+      || "";
+
     analysisResult.value = {
       accepted: result.accepted || result.passed,
       score: result.score || 0,
@@ -283,52 +289,97 @@ const analyzeResume = async () => {
       errors: result.errors || []
     }
 
-    // 3. Формируем подробный topic для интервью и сохраняем данные в store
+    // 3. Формируем подробный topic для интервью
     const fullTopic = (
       `Вакансия: ${vacancyData.value.title}. Уровень: ${vacancyData.value.level}. ` +
       `Требования: ${vacancyData.value.requirements}. Описание: ${vacancyData.value.description}`
     )
     
-    appStore.setResumeData({
-      fullName: userData.value.fullName,
-      email: userData.value.email,
-      phone: userData.value.phone,
-      resumeText: 
-        result.parsed_text
-        || result.resume_text
-        || result.details
-        || ""
-    })
-    
-    // 4. Сохраняем результат анализа и данные для интервью
-    appStore.setResumeAnalysis(result)
-    
-    // Подготовка данных для интервью с полным текстом вакансии в качестве темы
-    appStore.prepareInterviewData({
-      topic: fullTopic,
-      resumeText: result.parsed_text || result.resume_text || result.details || ""
-    })
-
-    // 5. СОХРАНЯЕМ КАНДИДАТА В БД 
+    // 4. СОХРАНЯЕМ КАНДИДАТА В БД (Получаем application_id)
     console.log('=== SAVING CANDIDATE TO DATABASE ===')
     
     const candidateData = new FormData()
     candidateData.append("email", userData.value.email)
     candidateData.append("full_name", userData.value.fullName)
     candidateData.append("phone", userData.value.phone)
-    candidateData.append("parsed_text", result.parsed_text || result.resume_text || result.details || "")
-    candidateData.append("metadata_json", JSON.stringify(result))
+    candidateData.append("parsed_text", parsedResumeText)
+
+    // --- ИСПРАВЛЕНИЕ: Включаем данные из формы (опыт, зарплата) в metadata_json ---
+    const userMetadata = {
+        // Добавляем результаты анализа, полученные с бэкенда
+        analysis_result: result, 
+        // Добавляем данные, введенные пользователем в форме DataFormView.vue
+        experience: userData.value.experience,
+        // Используем snake_case для бэкенда
+        salary_expectation: userData.value.salaryExpectation 
+    };
+    
+    // Удаляем пустые/нулевые значения, чтобы не отправлять их, если они не заданы
+    Object.keys(userMetadata).forEach(key => {
+        const value = userMetadata[key];
+        if (value === null || value === '' || value === undefined) {
+            delete userMetadata[key];
+        }
+    });
+
+    candidateData.append("metadata_json", JSON.stringify(userMetadata));
+    // ----------------------------------------------------------------------------------
+
     candidateData.append("resume", selectedFile.value)
     candidateData.append("vacancy_id", userData.value.vacancyId)
 
+    // ----------------------------------------------------
+    // !!! УЛУЧШЕННОЕ ЛОГИРОВАНИЕ ОШИБОК !!!
+    // ----------------------------------------------------
     try {
       console.log('Calling api.createCandidate...')
       const candidateResponse = await api.createCandidate(candidateData)
-      console.log('✅ Кандидат успешно сохранён:', candidateResponse)
+      
+      // Проверяем, что ID корректно вернулся
+      if (candidateResponse && candidateResponse.application_id) {
+        newApplicationId = candidateResponse.application_id
+        console.log('✅ Кандидат успешно сохранён:', candidateResponse)
+        console.log(`Retrieved application_id: ${newApplicationId}`)
+      } else {
+        console.error('Сервер вернул ответ, но application_id отсутствует. Полный ответ:', candidateResponse);
+        throw new Error("Сервер не вернул application_id.") 
+      }
     } catch (e) {
-      console.error('❌ Ошибка сохранения кандидата:', e)
-      // В реальном приложении здесь нужна более изящная обработка ошибок
+      console.error('❌ Критическая ошибка сохранения кандидата:', e)
+      console.error('Полная информация об ошибке:', JSON.stringify(e, Object.getOwnPropertyNames(e))); 
+      
+      const errorMessage = e.message || 'Неизвестная ошибка API';
+      analysisResult.value.errors.push(`Критическая ошибка сохранения данных: ${errorMessage}`)
+      
+      alert(`Критическая ошибка сохранения данных кандидата: ${errorMessage}. Невозможно продолжить интервью.`)
+      
+      isLoading.value = false;
+      return; 
     }
+    // ----------------------------------------------------
+
+    // 5. Сохраняем результат анализа и подготавливаем данные для интервью
+    
+    // Обновляем базовые контактные данные и текст резюме
+    appStore.setResumeData({
+      fullName: userData.value.fullName,
+      email: userData.value.email,
+      phone: userData.value.phone,
+      // Включаем опыт и зарплату обратно в Store, если они были обновлены парсером 
+      // (хотя в нашем случае они берутся из формы)
+      experience: userData.value.experience, 
+      salaryExpectation: userData.value.salaryExpectation,
+      resumeText: parsedResumeText
+    })
+    
+    appStore.setResumeAnalysis(result)
+    
+    // Подготовка данных для интервью, включая application_id
+    appStore.prepareInterviewData({
+      topic: fullTopic,
+      resumeText: parsedResumeText,
+      application_id: newApplicationId 
+    })
 
     console.log('=== RESUME ANALYSIS COMPLETED ===')
 
@@ -355,12 +406,20 @@ const backToForm = () => {
 }
 
 const startInterview = () => {
+  // Убедимся, что ID заявки был сохранен перед переходом
+  if (!appStore.userData?.interviewData?.application_id) {
+    alert("Ошибка: Не удалось получить ID заявки. Пожалуйста, убедитесь, что вы нажали 'Анализировать резюме' и не было критических ошибок, затем попробуйте снова.")
+    return
+  }
   router.push('/interview')
 }
-
 </script>
 
 <style scoped>
+*{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 /* Баннер с информацией о вакансии */
 .vacancy-banner {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);

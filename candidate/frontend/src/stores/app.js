@@ -6,10 +6,13 @@ export const useAppStore = defineStore('app', () => {
     fullName: '',
     email: '',
     phone: '',
+    // НОВЫЕ ПОЛЯ
+    experience: null, // Опыт работы (лет)
+    salaryExpectation: null, // Желаемая зарплата (RUB)
+    
     resumeText: '',
     resumeAnalysis: null,
     interviewData: null,
-    topic: 'software_developer', // Удаляется, т.к. topic теперь в interviewData
     language: 'ru',
     // Поля для вакансии
     vacancyId: null,
@@ -23,11 +26,16 @@ export const useAppStore = defineStore('app', () => {
     saveToStorage()
   }
 
-  // Сохранение данных резюме (контакты + текст)
+  // Сохранение данных резюме (контакты + текст + НОВЫЕ ПОЛЯ)
   function setResumeData(data) {
     userData.value.fullName = data.fullName
     userData.value.email = data.email
     userData.value.phone = data.phone
+    
+    // !!! ИСПРАВЛЕНИЕ: Добавлены новые поля !!!
+    userData.value.experience = data.experience || null
+    userData.value.salaryExpectation = data.salaryExpectation || null
+    
     // Используем resumeText из data, если он передан, иначе сохраняем текущий
     userData.value.resumeText = data.resumeText || userData.value.resumeText || ""
     saveToStorage()
@@ -39,22 +47,31 @@ export const useAppStore = defineStore('app', () => {
 
     if (result.parsed_text) {
       userData.value.resumeText = result.parsed_text
+      // Опционально: можно обновить experience/salary из парсинга
+      // if (result.metadata) {
+      //     userData.value.experience = result.metadata.experience || userData.value.experience
+      //     userData.value.salaryExpectation = result.metadata.salary_expectation || userData.value.salaryExpectation
+      // }
     }
     saveToStorage()
   }
 
   // Подготовка данных для интервью
   function prepareInterviewData(payload = {}) {
-    // В payload ожидаем {topic: string, resumeText: string}
+    // В payload ожидаем {topic: string, resumeText: string, application_id: number}
     userData.value.interviewData = {
       fullName: userData.value.fullName,
       email: userData.value.email,
       phone: userData.value.phone,
+      experience: userData.value.experience, // Передаем в интервью
+      salaryExpectation: userData.value.salaryExpectation, // Передаем в интервью
+      
       resumeText: payload.resumeText || userData.value.resumeText,
       topic: payload.topic || 'Общее техническое собеседование',
       language: userData.value.language,
       vacancyId: userData.value.vacancyId,
-      vacancyData: userData.value.vacancyData
+      vacancyData: userData.value.vacancyData,
+      application_id: payload.application_id || null 
     }
 
     saveToStorage()
@@ -75,8 +92,9 @@ export const useAppStore = defineStore('app', () => {
     const stored = localStorage.getItem('user_data')
     if (stored) {
       const parsed = JSON.parse(stored)
-      // При объединении, чтобы избежать потери новых полей (как vacancyData), 
+      // При объединении, чтобы избежать потери новых полей (как experience, salaryExpectation, vacancyData), 
       // объединяем сохраненные данные с дефолтным состоянием
+      // Используем Object.assign для гарантированного обновления всех полей
       Object.assign(userData.value, parsed)
     }
   }
@@ -87,10 +105,11 @@ export const useAppStore = defineStore('app', () => {
       fullName: '',
       email: '',
       phone: '',
+      experience: null, // Очищаем
+      salaryExpectation: null, // Очищаем
       resumeText: '',
       resumeAnalysis: null,
       interviewData: null,
-      topic: '',
       language: 'ru',
       vacancyId: null,
       vacancyData: null
@@ -100,7 +119,7 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     userData,
-    setUserData, // <-- НОВЫЙ/ОБНОВЛЕННЫЙ МЕТОД
+    setUserData, 
     setResumeData,
     setResumeAnalysis,
     setLanguage,
@@ -110,3 +129,5 @@ export const useAppStore = defineStore('app', () => {
     clearData
   }
 })
+
+// i'm still loving you

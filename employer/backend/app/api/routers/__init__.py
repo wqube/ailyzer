@@ -11,7 +11,7 @@ from fastapi import APIRouter
 
 from .user import router as user_router
 from .vacancy import router as vacancy_router
-from .role import router as role_router
+# from .role import router as role_router
 from .auth import router as auth_router
 
 # Демо-роутеры (можно оставить для тестирования)
@@ -25,7 +25,7 @@ router = APIRouter()
 router.include_router(auth_router)      # /api/v1/auth/*
 router.include_router(vacancy_router)   # /api/v1/vacancies/*
 router.include_router(user_router)      # /api/v1/users/*
-router.include_router(role_router)      # /api/v1/role/*
+# router.include_router(role_router)      # /api/v1/role/*
 
 # 👇 ДЕМО роутеры (для тестирования, можно удалить в проде)
 # demo_auth_router.include_router(demo_auth_jwt_router)

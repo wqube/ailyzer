@@ -172,7 +172,7 @@ export default {
         alert('Пароль должен содержать не менее 6 символов')
         return
       }
-
+      
       this.loading = true
       try {
         const result = await api.registerUser({

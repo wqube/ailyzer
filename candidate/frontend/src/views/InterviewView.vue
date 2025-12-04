@@ -135,11 +135,7 @@
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="container">
-        <p>&copy; 2025 AIlyzer. ARPL Team.</p>
-      </div>
-    </footer>
+    <Footer></Footer>
   </div>
 </template>
 
@@ -147,6 +143,7 @@
 import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import Footer from '../components/Footer.vue'
 
 const router = useRouter()
 const store = useAppStore()
@@ -167,6 +164,9 @@ const isSpeechSupported = ref(false)
 
 const messagesContainer = ref(null)
 const speechRecognition = ref(null)
+
+// Добавляем реактивную переменную для хранения id вакансии
+const applicationId = ref(null)
 
 // -------------------------------------------------------
 // Constants
@@ -214,6 +214,20 @@ const addMessage = (text, type, score, reasoning) => {
   })
 }
 
+//// Кнопки возврата к анализу
+const backToAnalysis = () => {
+  // Получаем vacancyId из store
+  const vacancyId = store.userData?.vacancyId
+  
+  // Если есть ID вакансии, переходим на страницу анализа с этим ID
+  if (vacancyId) {
+    router.push(`/resume-analysis/${vacancyId}`)
+  } else {
+    // Иначе на общую страницу анализа
+    router.push('/resume-analysis')
+  }
+}
+
 // -------------------------------------------------------
 // Speech recognition
 // -------------------------------------------------------
@@ -249,11 +263,19 @@ const startInterview = async () => {
   }
 
   const resumeText = interview.resumeText || "";
+  const appId = interview.application_id || null;
+
+  if (!appId) {
+      addMessage("Ошибка: ID заявки отсутствует. Невозможно начать интервью.", "bot")
+      return
+  }
 
   if (!resumeText.trim()) {
     addMessage("Ошибка: текст резюме отсутствует.", "bot")
     return
   }
+
+  applicationId.value = appId; // Сохраняем в локальное состояние
 
   isLoading.value = true
   addMessage("Запуск собеседования...", "bot")
@@ -265,7 +287,8 @@ const startInterview = async () => {
       body: JSON.stringify({
         resume_text: resumeText,
         language: currentLanguage.value,
-        topic: currentTopic.value
+        topic: currentTopic.value,
+        application_id: applicationId.value // ПЕРЕДАЕМ ID ЗАЯВКИ
       })
     })
 
@@ -351,6 +374,7 @@ const restartInterview = () => {
   isFinished.value = false
   interviewPassed.value = false
   currentQuestionNumber.value = 0
+  applicationId.value = null; // <-- Сброс ID при перезапуске
   addMessage("Нажмите 'Начать собеседование'", "bot")
 }
 
@@ -363,6 +387,11 @@ onMounted(() => {
   if (!store.userData.interviewData) {
     router.push('/resume-analysis')
     return
+  }
+
+  // --- ОБНОВЛЕНО: Предварительно сохраняем application_id из хранилища ---
+  if (store.userData.interviewData.application_id) {
+    applicationId.value = store.userData.interviewData.application_id;
   }
 
   initializeSpeechRecognition()
@@ -379,6 +408,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+*{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
 .interview-view {
   min-height: 100vh;
   display: flex;

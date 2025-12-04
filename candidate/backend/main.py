@@ -15,7 +15,7 @@ from .routes import vacancy_routes
 app = FastAPI(title="AIlyzer API")
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BASE_DIR))
-                
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

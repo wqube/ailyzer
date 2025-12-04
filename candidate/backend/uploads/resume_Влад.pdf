@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <script type="module" src="/@id/virtual:vue-devtools-path:overlay.js"></script>
+    <script type="module" src="/@id/virtual:vue-inspector-path:load.js"></script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ailyzer</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js?t=1764087227868"></script>
+  </body>
+</html>

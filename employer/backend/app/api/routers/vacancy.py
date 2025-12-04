@@ -1,15 +1,19 @@
-# api/routers/vacancy.py
-"""CRUD для вакансий с авторизацией"""
+"""
+CRUD для вакансий с авторизацией и получением данных кандидатов с агрегированными оценками.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List
+# Добавляем func для агрегационных функций (AVG, COUNT)
+from sqlalchemy import select, func
+from typing import List, Optional
 
 from shared.db.session import db_helper
-from shared.db.models import User, Vacancy, User
+# Добавляем InterviewScore, который нужен для агрегации
+from shared.db.models import User, Vacancy, Application
 
-from ...schemas.vacancy import VacancyCreate, VacancyRead
+from ...schemas.vacancy import VacancyCreate, VacancyRead, VacancyUpdate
+from ...schemas.application import CandidateApplicationRead # Используем новую схему с полями оценок
 from ...api.dependencies.auth import get_current_employer
 
 router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
@@ -104,7 +108,6 @@ async def get_all_vacancies(
 
 # ============ ПОЛУЧИТЬ КОНКРЕТНУЮ АКТИВНУЮ ВАКАНСИЮ ============
 
-# @router.get("public/{vacancy_id}", response_model=VacancyRead)
 @router.get("/{vacancy_id}", response_model=VacancyRead)
 async def get_active_vacancy(
     vacancy_id: int,
@@ -134,20 +137,21 @@ async def get_active_vacancy(
     return vacancy
 
 
-# ============ ОБНОВИТЬ ВАКАНСИЮ ============
+# ============ ОБНОВИТЬ ВАКАНСИЮ (ЧАСТИЧНО) ============
 
 @router.patch("/{vacancy_id}", response_model=VacancyRead)
 async def update_vacancy(
     vacancy_id: int,
-    vacancy_update: VacancyCreate,  # Можно создать отдельную схему VacancyUpdate
+    vacancy_update: VacancyUpdate,  # Используем VacancyUpdate
     current_employer: User = Depends(get_current_employer),
     session: AsyncSession = Depends(db_helper.get_db),
 ):
     """
-    Обновить вакансию.
+    Обновить вакансию (частично).
     
     - Требует авторизации
     - Только владелец вакансии может её обновить
+    - Использует model_dump(exclude_unset=True) для обработки только переданных полей
     """
     
     vacancy = await session.get(Vacancy, vacancy_id)
@@ -165,11 +169,12 @@ async def update_vacancy(
             detail="You can only update your own vacancies"
         )
     
+    # Используем model_dump для получения только измененных полей
+    update_data = vacancy_update.model_dump(exclude_unset=True)
+
     # Обновляем поля
-    vacancy.title = vacancy_update.title
-    vacancy.description = vacancy_update.description
-    vacancy.requirements = vacancy_update.requirements
-    vacancy.level = vacancy_update.level
+    for key, value in update_data.items():
+        setattr(vacancy, key, value)
     
     await session.commit()
     await session.refresh(vacancy)
@@ -177,16 +182,16 @@ async def update_vacancy(
     return vacancy
 
 
-# ============ УДАЛИТЬ ВАКАНСИЮ ============
+# ============ УДАЛИТЬ ВАКАНСИЮ (ПОЛНОЕ УДАЛЕНИЕ ИЗ БД) ============
 
-@router.delete("/{vacancy_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/delete/{vacancy_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_vacancy(
     vacancy_id: int,
     current_employer: User = Depends(get_current_employer),
     session: AsyncSession = Depends(db_helper.get_db),
 ):
     """
-    Удалить вакансию (или закрыть - изменить статус на 'closed').
+    Удалить вакансию (полное удаление из БД).
     
     - Требует авторизации
     - Только владелец вакансии может её удалить
@@ -207,12 +212,73 @@ async def delete_vacancy(
             detail="You can only delete your own vacancies"
         )
     
-    # Вариант 1: Мягкое удаление (закрытие)
-    vacancy.status = "closed"
+    # Жеское удаление из БД
+    await session.delete(vacancy)
     await session.commit()
     
-    # Вариант 2: Полное удаление
-    # await session.delete(vacancy)
-    # await session.commit()
+    return None  # 204 No Content
+
+
+# ============ ПОЛУЧИТЬ КАНДИДАТОВ ДЛЯ ВАКАНСИИ ============
+
+@router.get("/{vacancy_id}/candidates", response_model=List[CandidateApplicationRead])
+async def get_candidates_for_vacancy(
+    vacancy_id: int,
+    current_employer: User = Depends(get_current_employer),
+    session: AsyncSession = Depends(db_helper.get_db),
+):
+    """
+    Получить список кандидатов (откликов) для вакансии.
+    """
     
-    return None  # 204 No Content\
+    # 1. Проверяем существование и владение вакансией
+    vacancy = await session.get(Vacancy, vacancy_id)
+    
+    if not vacancy:
+        raise HTTPException(status_code=404, detail="Vacancy not found")
+        
+    if vacancy.hr_id != current_employer.user_id:
+        raise HTTPException(status_code=403, detail="Not the owner")
+
+    # 2. Простой запрос к Application
+    # Так как interview_score уже есть в таблице Application, джойны не нужны.
+    query = (
+        select(Application)
+        .where(Application.vacancy_id == vacancy_id)
+        .order_by(Application.created_at.desc())
+    )
+
+    result = await session.execute(query)
+    candidates = result.scalars().all()
+    
+    # Pydantic (CandidateApplicationRead) автоматически возьмет 
+    # interview_score из модели Application
+    return candidates
+
+
+
+# ============ ПОЛУЧИТЬ ОДНОГО КАНДИДАТА ПО application_id ============
+
+@router.get("/candidates/{application_id}", response_model=CandidateApplicationRead)
+async def get_single_candidate(
+    application_id: int,
+    current_employer: User = Depends(get_current_employer),
+    session: AsyncSession = Depends(db_helper.get_db),
+):
+    """
+    Получить детальные данные по конкретному кандидату.
+    """
+    
+    # 1. Получаем заявку
+    application = await session.get(Application, application_id)
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+        
+    # 2. Проверяем права через вакансию
+    vacancy = await session.get(Vacancy, application.vacancy_id)
+    
+    if not vacancy or vacancy.hr_id != current_employer.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    return application

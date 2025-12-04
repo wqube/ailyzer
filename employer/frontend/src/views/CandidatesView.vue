@@ -11,6 +11,11 @@
 
     <div class="candidates-content">
       <div class="container">
+        <!-- Сообщение об ошибке -->
+        <div v-if="errorMessage" class="error-state">
+            <p>🚫 Ошибка: {{ errorMessage }}</p>
+        </div>
+
         <!-- Индикатор загрузки -->
         <div v-if="loading" class="loading-state">
           <div class="loading-spinner"></div>
@@ -34,9 +39,17 @@
             <div class="candidate-info">
               <p><strong>Email:</strong> {{ candidate.email }}</p>
               <p><strong>Телефон:</strong> {{ candidate.phone || 'Не указан' }}</p>
+              <!-- Изменено: теперь используется внутренний <span> для стилизации только балла -->
+              <p class="score-line">
+                  <strong>Баллы за собеседование с ИИ:</strong>
+                  <span :class="['score-badge', getScoreColorClass(candidate.interview_score)]">
+                      {{ candidate.interview_score || 'Нет оценки' }}
+                  </span>
+              </p>
+              <!-- Предполагаем, что бэкенд вернет эти данные в удобном формате -->
               <p><strong>Опыт работы:</strong> {{ candidate.experience || 'Не указан' }}</p>
-              <p><strong>Навыки:</strong> {{ candidate.skills || 'Не указаны' }}</p>
-              <p><strong>Дата отклика:</strong> {{ formatDate(candidate.applied_at) }}</p>
+              <p><strong>Желаемая зарплата:</strong> {{ candidate.salary_expectation || 'Не указаны' }}</p>
+              <p><strong>Дата отклика:</strong> {{ formatDate(candidate.created_at) }}</p>
             </div>
             
             <div class="candidate-actions">
@@ -75,113 +88,127 @@ export default {
   name: 'CandidatesView',
   data() {
     return {
-      candidates: [],
-      currentVacancy: null,
-      loading: false,
-      errorMessage: ''
+      candidates: [],      // Список кандидатов (теперь с полем interview_score)
+      currentVacancy: null, // Данные текущей вакансии
+      loading: false,       // Индикатор загрузки
+      errorMessage: ''      // Текст ошибки
     }
   },
   methods: {
-    // Загрузка кандидатов для вакансии
+    // === ОСНОВНАЯ ЛОГИКА ЗАГРУЗКИ ===
     async loadCandidates() {
       this.loading = true
       this.errorMessage = ''
       
       try {
         const vacancyId = this.$route.params.vacancyId
-        // Загружаем данные вакансии
+        
+        // 1. Загружаем данные самой вакансии (для заголовка и проверок)
         this.currentVacancy = await api.getVacancyById(vacancyId)
         
-        // TODO: Заменить на реальный API вызов для получения кандидатов
-        // Временные моковые данные
-        this.candidates = [
-          {
-            id: 1,
-            full_name: 'Иванов Иван Иванович',
-            email: 'ivanov@example.com',
-            phone: '+7 (999) 123-45-67',
-            experience: '3 года',
-            skills: 'Vue.js, JavaScript, HTML, CSS',
-            status: 'new',
-            applied_at: '2024-01-20T10:30:00',
-            resume_url: '/resumes/resume1.pdf'
-          },
-          {
-            id: 2,
-            full_name: 'Петрова Анна Сергеевна',
-            email: 'petrova@example.com',
-            phone: '+7 (999) 765-43-21',
-            experience: '2 года',
-            skills: 'React, TypeScript, Redux',
-            status: 'reviewed',
-            applied_at: '2024-01-19T14:20:00'
-          }
-        ]
+        // 2. Загружаем список кандидатов
+        // Бэкенд теперь возвращает массив объектов, где есть поле interview_score (float или null)
+        const response = await api.getCandidatesForVacancy(vacancyId)
         
+        // Сохраняем в переменную данных
+        this.candidates = response
+        
+        console.log('Кандидаты загружены:', this.candidates)
+
       } catch (error) {
-        console.error('Error loading candidates:', error)
+        console.error('Ошибка при загрузке кандидатов:', error)
         this.errorMessage = this.getErrorMessage(error)
       } finally {
         this.loading = false
       }
     },
 
-    // Просмотр деталей кандидата
-    viewCandidateDetails(candidate) {
-      // Здесь можно открыть модальное окно с детальной информацией
-      // или перейти на отдельную страницу кандидата
-      console.log('View candidate details:', candidate)
-      // Временная реализация - показываем alert
-      alert(`Детальная информация о кандидате:\n\nИмя: ${candidate.full_name}\nEmail: ${candidate.email}\nТелефон: ${candidate.phone}\nОпыт: ${candidate.experience}\nНавыки: ${candidate.skills}`)
+    // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ШАБЛОНА ===
+
+    // Получение класса цвета в зависимости от балла (теперь возвращает кастомные классы)
+    getScoreColorClass(score) {
+      const numScore = parseFloat(score)
+      // Если оценка отсутствует или невалидна
+      if (isNaN(numScore) || numScore === null || numScore === undefined) {
+        return 'score-none' 
+      }
+      
+      // Логика баллов
+      if (numScore >= 4) return 'score-high' // 4 и выше
+      if (numScore >= 2) return 'score-medium' // 2 или 3
+      return 'score-low' // 0 или 1
     },
 
-    // Скачать резюме
-    downloadResume(candidate) {
-      if (candidate.resume_url) {
-        // Эмуляция скачивания резюме
-        const link = document.createElement('a')
-        link.href = candidate.resume_url
-        link.download = `resume_${candidate.full_name}.pdf`
-        link.click()
+    // Получение текстового статуса
+    getStatusText(status) {
+      const statusMap = {
+        new: 'Новый',
+        reviewed: 'Просмотрен',
+        interview_passed: 'Интервью пройдено',
+        interview_failed: 'Интервью не пройдено',
+        rejected: 'Отклонен',
+        invited: 'Приглашен'
       }
+      return statusMap[status] || status
+    },
+
+    // Класс для статуса
+    getStatusClass(status) {
+      const map = {
+        new: 'bg-blue-100 text-blue-800', // Эти классы из вашей стилизации, но могут не работать без Tailwind
+        interview_passed: 'bg-green-100 text-green-800',
+        interview_failed: 'bg-red-100 text-red-800',
+        rejected: 'bg-gray-100 text-gray-600',
+      }
+      // Возвращаем класс, который используется в секции <style> (candidate-status)
+      return status
     },
 
     // Обработка ошибок
     getErrorMessage(error) {
       const message = error.message || 'Произошла ошибка'
-      
       if (message.includes('401') || message.includes('authentication')) {
         return 'Ошибка авторизации. Пожалуйста, войдите снова.'
       } else if (message.includes('404')) {
         return 'Вакансия не найдена.'
+      } else if (message.includes('403')) {
+        return 'У вас нет прав на просмотр этой вакансии.'
       }
-      
       return message
     },
-
+    
     // Форматирование даты
     formatDate(dateString) {
       if (!dateString) return ''
-      const date = new Date(dateString)
-      return date.toLocaleDateString('ru-RU')
+      try {
+        return new Date(dateString).toLocaleDateString('ru-RU')
+      } catch {
+        return dateString
+      }
     },
 
-    // Текст статуса
-    getStatusText(status) {
-      const statusMap = {
-        new: 'Новый',
-        reviewed: 'Просмотрен',
-        rejected: 'Отклонен',
-        invited: 'Приглашен'
+    // Действия (заглушки)
+    viewCandidateDetails(candidate) {
+      console.log('Открыть кандидата:', candidate)
+      // Логика перехода или открытия модалки
+    },
+    
+    downloadResume(candidate) {
+       if (candidate.resume_url) {
+        const url = candidate.resume_url.startsWith('http') 
+          ? candidate.resume_url 
+          : `http://localhost:8000${candidate.resume_url}`
+        window.open(url, '_blank')
+      } else {
+        alert("Ссылка на резюме не найдена")
       }
-      return statusMap[status] || status
     }
   },
 
   mounted() {
-    // Проверяем авторизацию
+    // Проверка авторизации при загрузке компонента
     if (!authUtils.isAuthenticated()) {
-      this.$router.push({ name: 'employer-login' })
+      this.$router.push('/login')
       return
     }
     
@@ -276,6 +303,57 @@ export default {
   margin: 0.5rem 0;
   color: #666;
 }
+
+/* --- НОВЫЕ СТИЛИ ДЛЯ БАЛЛОВ --- */
+
+.score-line {
+    /* Чтобы балл и текст были на одной линии */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0.5rem 0 !important;
+}
+
+.score-badge {
+    /* Базовые стили для всех бейджей оценок */
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+/* Высокий балл (4+) */
+.score-badge.score-high {
+    background-color: #d1fae5; /* Светло-зеленый фон */
+    color: #065f46; /* Темно-зеленый текст */
+    border: 1px solid #a7f3d0;
+}
+
+/* Средний балл (2-3) */
+.score-badge.score-medium {
+    background-color: #fffbeb; /* Светло-желтый фон */
+    color: #b45309; /* Темно-оранжевый текст */
+    border: 1px solid #fcd34d;
+}
+
+/* Низкий балл (0-1) */
+.score-badge.score-low {
+    background-color: #fee2e2; /* Светло-красный фон */
+    color: #b91c1c; /* Темно-красный текст */
+    border: 1px solid #fca5a5;
+}
+
+/* Нет оценки */
+.score-badge.score-none {
+    background-color: #f3f4f6; /* Серый фон */
+    color: #6b7280; /* Серый текст */
+    border: 1px solid #e5e7eb;
+    font-weight: 500;
+}
+
+/* --- КОНЕЦ НОВЫХ СТИЛЕЙ --- */
+
 
 .candidate-actions {
   display: flex;

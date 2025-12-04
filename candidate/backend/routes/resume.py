@@ -29,7 +29,7 @@ async def upload_resume(
         raise HTTPException(status_code=400, detail="Файл не найден")
     if resume.filename == "":
         raise HTTPException(status_code=400, detail="Файл не выбран")
-    if not allowed_file(resume.filename):
+    if not allowed_file(resume.filename): # type: ignore
         raise HTTPException(status_code=400, detail="Недопустимый формат файла")
 
     # 1. Получаем информацию о вакансии из БД

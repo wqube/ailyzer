@@ -30,6 +30,6 @@ async def speak_text_local(text: str, language: str = "en"):
             speaker="Claribel Dervla",
             language=language
         )
-        sd.play(audio, samplerate=tts.synthesizer.output_sample_rate)
+        sd.play(audio, samplerate=tts.synthesizer.output_sample_rate) # type: ignore
         sd.wait()
     await loop.run_in_executor(None, _synth_and_play)

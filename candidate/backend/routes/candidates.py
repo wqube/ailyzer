@@ -6,9 +6,9 @@ import json
 import os
 
 from shared.db.session import db_helper
-from shared.db.models import User, Application, Resume
+from shared.db.models import Application, Resume # Удален импорт User
 
-CANDIDATE_ROLE_ID = 1
+# CANDIDATE_ROLE_ID больше не нужен
 router = APIRouter(prefix="/api/candidates", tags=["Candidates"])
 
 
@@ -19,6 +19,8 @@ async def create_candidate(
     phone: str = Form(...),
     vacancy_id: Optional[int] = Form(None),
     parsed_text: Optional[str] = Form(None),
+    # metadata_json теперь будет содержать experience и salary_expectation, 
+    # введенные вручную, если резюме не загружено
     metadata_json: Optional[str] = Form(None),
     resume: Optional[UploadFile] = File(None),
     session: AsyncSession = Depends(db_helper.get_db),
@@ -33,10 +35,23 @@ async def create_candidate(
     print(f"Resume filename: {resume.filename if resume else 'None'}")
     print("=" * 60)
     
-    # 1. Создаём заявку (Application)
-    print("1) Creating application...")
+    # 4. Парсим metadata_json в первую очередь
+    print("1) Processing metadata...")
+    metadata = {}
+    if metadata_json:
+        try:
+            metadata = json.loads(metadata_json)
+            print(f"✓ Metadata parsed successfully: {metadata}")
+        except Exception as e:
+            print(f"❌ Error parsing metadata: {e}")
+            metadata = {}
+    else:
+        print("⚠ No metadata provided")
+
+    # 1. Создаём/находим заявку (Application)
+    # Используем данные из формы для создания Application
     
-    # Проверяем, нет ли уже заявки с таким email на эту вакансию
+    # 2. Проверяем, нет ли уже заявки с таким email на эту вакансию
     if vacancy_id:
         q = await session.execute(
             select(Application).where(
@@ -48,16 +63,17 @@ async def create_candidate(
         
         if existing_app:
             print(f"⚠️ Application already exists! Application ID: {existing_app.application_id}")
-            # Можно либо вернуть ошибку, либо использовать существующую заявку
-            # raise HTTPException(status_code=400, detail="Application already exists for this vacancy")
             application = existing_app
         else:
-            # Создаём новую заявку
+            # Создаём новую заявку с данными из формы/метаданных
             application = Application(
                 email=email,
                 full_name=full_name,
                 phone=phone,
                 vacancy_id=vacancy_id,
+                # Добавляем необязательные поля сразу из метаданных формы
+                experience=metadata.get('experience'),
+                salary_expectation=metadata.get('salary_expectation'),
             )
             session.add(application)
             await session.flush()
@@ -69,38 +85,23 @@ async def create_candidate(
             full_name=full_name,
             phone=phone,
             vacancy_id=None,
+            # Добавляем необязательные поля сразу из метаданных формы
+            experience=metadata.get('experience'),
+            salary_expectation=metadata.get('salary_expectation'),
         )
         session.add(application)
         await session.flush()
         print(f"✓ Application created (no vacancy) with ID: {application.application_id}")
 
-    # 2. Проверяем/создаём пользователя (опционально)
-    print("2) Checking/Creating user...")
-    q = await session.execute(select(User).where(User.email == email))
-    user = q.scalars().first()
-    
-    if not user:
-        # Создаём пользователя только если его нет
-        user = User(
-            email=email,
-            password_hash="TEMP_PASSWORD_HASH",  # Временный хеш
-            role_id=CANDIDATE_ROLE_ID,
-            status="active",
-            city=None,
-        )
-        session.add(user)
-        await session.flush()
-        print(f"✓ User created with ID: {user.user_id}")
-    else:
-        print(f"✓ User already exists with ID: {user.user_id}")
+    print("3) Skipping User creation. Data stored only in Application.")
 
-    # 3. Сохраняем файл резюме
-    print("3) Saving resume file...")
+    # 4. Сохраняем файл резюме
+    print("4) Saving resume file...")
     file_path = None
     if resume:
         folder = "uploads/resumes"
         os.makedirs(folder, exist_ok=True)
-        # Используем application_id для имени файла
+        # Обязательно используем `application.application_id` после `session.flush()`
         file_path = os.path.join(folder, f"app_{application.application_id}_{resume.filename}")
         
         try:
@@ -114,41 +115,48 @@ async def create_candidate(
     else:
         print("⚠ No resume file provided")
 
-    # 4. Парсим metadata_json
-    print("4) Processing metadata...")
-    metadata = None
-    if metadata_json:
-        try:
-            metadata = json.loads(metadata_json)
-            print(f"✓ Metadata parsed successfully")
-        except Exception as e:
-            print(f"❌ Error parsing metadata: {e}")
-            metadata = {}
+    # 5. Создаём запись резюме
+    # Делаем это, только если есть файл или парсированный текст (хотя бы одно из них)
+    if resume or parsed_text:
+        print("5) Creating resume record...")
+        print(f"   - application_id: {application.application_id}")
+        print(f"   - vacancy_id: {vacancy_id}")
+        print(f"   - file_path: {file_path}")
+        print(f"   - parsed_text length: {len(parsed_text) if parsed_text else 0}")
+        
+        db_resume = Resume(
+            application_id=application.application_id,  
+            vacancy_id=vacancy_id,
+            file_path=file_path,
+            parsed_text=parsed_text,
+            metadata_json=metadata,
+        )
+        session.add(db_resume)
+        print("✓ Resume record created")
     else:
-        print("⚠ No metadata provided")
+        db_resume = None
+        print("5) Skipping Resume record creation (no file and no parsed text)")
 
-    # 5. Создаём запись резюме (НОВАЯ СТРУКТУРА)
-    print("5) Creating resume record...")
-    print(f"   - candidate_id: {user.user_id}")
-    print(f"   - application_id: {application.application_id}")
-    print(f"   - vacancy_id: {vacancy_id}")
-    print(f"   - file_path: {file_path}")
-    print(f"   - parsed_text length: {len(parsed_text) if parsed_text else 0}")
-    
-    db_resume = Resume(
-        candidate_id=user.user_id,
-        application_id=application.application_id,  # НОВОЕ ПОЛЕ
-        vacancy_id=vacancy_id,
-        file_path=file_path,
-        parsed_text=parsed_text,
-        metadata_json=metadata,
-    )
-    session.add(db_resume)
-    print("✓ Resume record created")
 
     # 6. Коммит в БД
     print("6) Committing to database...")
     try:
+        # Обновление Application данными из метаданных/парсинга:
+        # 1. Если был парсинг, он перепишет опыт/зарплату, введенные вручную
+        # 2. Если парсинга не было, Application уже содержит данные из формы
+        
+        # Обновляем Application данными из parsed_text/metadata (если парсинг прошел)
+        # В этом месте мы должны обновить поля, только если пришел результат парсинга
+        # (т.е. parsed_text не None), иначе оставляем данные, которые пришли из формы.
+        if parsed_text and db_resume and metadata:
+            # Применяем данные из метаданных парсинга к Application
+            application.position = metadata.get('position', application.position)
+            # Применяем опыт и зарплату из метаданных парсинга
+            # Если поля не были в Application, они добавятся, если были - обновятся
+            application.experience = metadata.get('experience', application.experience)
+            application.salary_expectation = metadata.get('salary_expectation', application.salary_expectation)
+
+
         await session.commit()
         print("✓ Transaction committed successfully")
     except Exception as e:
@@ -158,19 +166,18 @@ async def create_candidate(
         await session.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
+    # 7. Финальный ответ
     print("=" * 60)
     print("=== /api/candidates/create FINISHED SUCCESSFULLY ===")
-    print(f"User ID: {user.user_id}")
     print(f"Application ID: {application.application_id}")
-    print(f"Resume ID: {db_resume.resume_id}")
+    print(f"Resume ID: {db_resume.resume_id if db_resume else 'None'}")
     print(f"Vacancy ID: {vacancy_id}")
     print("=" * 60)
     
     return {
         "status": "success",
-        "user_id": user.user_id,
         "application_id": application.application_id,
-        "resume_id": db_resume.resume_id,
+        "resume_id": db_resume.resume_id if db_resume else None,
         "vacancy_id": vacancy_id,
         "file_path": file_path,
     }
