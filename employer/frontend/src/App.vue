@@ -1,46 +1,98 @@
 <script>
-    import Footer from './components/Footer.vue';
-    import Header from './components/Header.vue';
-    import MainPage from './components/MainPage.vue';
-    import Registration from './components/Registration.vue';
-    import Login from './components/Login.vue';
+import Footer from './components/Footer.vue';
+import Header from './components/Header.vue';
+import Login from './components/Login.vue';
+import MainPage from './components/MainPage.vue';
+import Registration from './components/Registration.vue';
 
-    export default {
-        name: 'App',
-        components: {
+export default {
+    name: 'App',
+    components: {
         Header,
         Footer,
         MainPage,
-        Login,
-        Registration
+        Registration,
+        Login
     },
     data() {
         return {
-        currentPage: 'mainpage'
+            currentPage: 'mainpage'
+        }
+    },
+    computed: {
+        // Определяем текущую страницу на основе маршрута
+        pageTitle() {
+            const routeName = this.$route.name;
+            const titles = {
+                'employer-login': 'Вход для работодателя',
+                'employer-register': 'Регистрация работодателя',
+                'employer-dashboard': 'Дашборд работодателя',
+                'mainpage': 'Главная страница'
+            };
+            return titles[routeName] || 'Ailyzer';
         }
     },
     methods: {
         changePage(page) {
-        this.currentPage = page
+            // Навигация через Vue Router
+            const routes = {
+                // 'mainpage': '/employer/dashboard',
+                'mainpage': '/',
+                'login': '/employer/login',
+                'registration': '/employer/register',
+                'dashboard': '/employer/dashboard'
+            };
+            
+            if (routes[page]) {
+                this.$router.push(routes[page]);
+            }
+        },
+        
+        // Метод для определения активной страницы в Header
+        getCurrentPage() {
+            const routeName = this.$route.name;
+            const pageMap = {
+                'employer-login': 'login',
+                'employer-register': 'registration',
+                'employer-dashboard': 'dashboard'
+            };
+            return pageMap[routeName] || 'mainpage';
+        }
+    },
+    mounted() {
+        // Инициализация текущей страницы при загрузке
+        this.currentPage = this.getCurrentPage();
+    },
+    watch: {
+        // Отслеживаем изменения маршрута
+        '$route'(to) {
+            this.currentPage = this.getCurrentPage();
         }
     }
-    }
+}
 </script>
 
 <template>
-    
-    <Header :currentPage="currentPage" @navigate="changePage"></Header>
+    <div class="app">
+        <Header :currentPage="currentPage" @navigate="changePage"></Header>
 
-    <main class="main-content">
-        <MainPage v-if="currentPage === 'mainpage'" @navigate="changePage">  <</MainPage>
-        <Login v-else-if="currentPage === 'login'" @navigate="changePage"> </Login>
-        <Registration v-else-if="currentPage === 'registration'" @navigate="changePage"> </Registration>
-    </main>
+        <main class="main-content">
+            <router-view></router-view>
+        </main>
 
-    <Footer></Footer>
-
+        <Footer></Footer>
+    </div>
 </template>
 
 <style scoped>
+.app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
 
+.main-content {
+    flex: 1;
+    padding: 0;
+}
 </style>

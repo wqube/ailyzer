@@ -1,16 +1,5 @@
 <template>
   <div class="interview-view">
-    <header class="header">
-      <div class="container">
-        <div class="logo">
-          <h1>AIlyzer</h1>
-        </div>
-        <div class="header-actions">
-          <span class="page-title">Техническое собеседование</span>
-          <button @click="backToAnalysis" class="btn btn-outline">Назад</button>
-        </div>
-      </div>
-    </header>
 
     <main class="main-content">
       <section class="interview-section">
@@ -125,7 +114,6 @@
                   </div>
                 </div>
                 <div class="result-actions">
-                  <button @click="backToAnalysis" class="btn btn-outline">Вернуться к анализу</button>
                   <button @click="restartInterview" class="btn btn-primary">Пройти заново</button>
                 </div>
               </div>
@@ -134,36 +122,8 @@
         </div>
       </section>
     </main>
-
-    <footer class="footer">
-      <div class="container">
-        <p>&copy; 2025 AIlyzer. ARPL Team.</p>
-      </div>
-    </footer>
   </div>
 </template>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 <script setup>
 import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue'
@@ -189,6 +149,9 @@ const isSpeechSupported = ref(false)
 
 const messagesContainer = ref(null)
 const speechRecognition = ref(null)
+
+// Добавляем реактивную переменную для хранения id вакансии
+const applicationId = ref(null)
 
 // -------------------------------------------------------
 // Constants
@@ -271,23 +234,32 @@ const startInterview = async () => {
   }
 
   const resumeText = interview.resumeText || "";
+  const appId = interview.application_id || null;
+
+  if (!appId) {
+      addMessage("Ошибка: ID заявки отсутствует. Невозможно начать интервью.", "bot")
+      return
+  }
 
   if (!resumeText.trim()) {
     addMessage("Ошибка: текст резюме отсутствует.", "bot")
     return
   }
 
+  applicationId.value = appId; // Сохраняем в локальное состояние
+
   isLoading.value = true
   addMessage("Запуск собеседования...", "bot")
 
   try {
-    const response = await fetch("http://localhost:8000/api/start_interview", {
+    const response = await fetch("http://localhost:8001/api/start_interview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         resume_text: resumeText,
         language: currentLanguage.value,
-        topic: currentTopic.value
+        topic: currentTopic.value,
+        application_id: applicationId.value // ПЕРЕДАЕМ ID ЗАЯВКИ
       })
     })
 
@@ -316,7 +288,7 @@ const sendAnswer = async () => {
   isLoading.value = true
 
   try {
-    const response = await fetch("http://localhost:8000/api/answer", {
+    const response = await fetch("http://localhost:8001/api/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -373,6 +345,7 @@ const restartInterview = () => {
   isFinished.value = false
   interviewPassed.value = false
   currentQuestionNumber.value = 0
+  applicationId.value = null; // <-- Сброс ID при перезапуске
   addMessage("Нажмите 'Начать собеседование'", "bot")
 }
 
@@ -385,6 +358,11 @@ onMounted(() => {
   if (!store.userData.interviewData) {
     router.push('/resume-analysis')
     return
+  }
+
+  // --- ОБНОВЛЕНО: Предварительно сохраняем application_id из хранилища ---
+  if (store.userData.interviewData.application_id) {
+    applicationId.value = store.userData.interviewData.application_id;
   }
 
   initializeSpeechRecognition()
@@ -400,67 +378,6 @@ onUnmounted(() => {
 })
 </script>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <style scoped>
 .interview-view {
   min-height: 100vh;
@@ -469,13 +386,6 @@ onUnmounted(() => {
   background-color: #f8f9fa;
 }
 
-.main-content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-}
 
 .interview-section {
   width: 100%;
@@ -704,92 +614,7 @@ onUnmounted(() => {
   margin-top: 10px;
 }
 
-.btn.listening {
-  background: #ef4444;
-  color: white;
-  border-color: #ef4444;
-}
 
-/* Header & Footer styles (same as previous components) */
-.header {
-  background-color: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 15px 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header .container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo h1 {
-  color: #10b981;
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.page-title {
-  font-weight: 500;
-  color: #666;
-}
-
-.btn {
-  display: inline-block;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: 500;
-  text-decoration: none;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-primary {
-  background-color: #10b981;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #0da271;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
-}
-
-.btn-outline {
-  background-color: transparent;
-  color: #10b981;
-  border: 1px solid #10b981;
-}
-
-.btn-outline:hover:not(:disabled) {
-  background-color: #10b981;
-  color: white;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-}
-
-.footer {
-  background-color: #333;
-  color: white;
-  padding: 20px 0;
-  text-align: center;
-}
 
 @media (max-width: 768px) {
   .interview-card {

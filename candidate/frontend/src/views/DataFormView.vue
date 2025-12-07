@@ -1,22 +1,36 @@
 <template>
   <div class="data-form-view">
-    <header class="header">
-      <div class="container">
-        <div class="logo">
-          <h1>AIlyzer</h1>
-        </div>
-        <div class="header-actions">
-          <span class="page-title">Заполнение профиля</span>
-        </div>
-      </div>
-    </header>
+    <!-- Модальное окно с информацией о вакансии -->
+    <VacancyDetailsModal
+      :show="showVacancyModal"
+      :vacancyData="vacancyData"
+      :loading="loadingVacancy"
+      :error="vacancyError"
+      :getLevelText="getLevelText"
+      @close="closeVacancyModal"
+    />
+
+    <!-- Кнопка для просмотра информации о вакансии (если есть) -->
+    <VacancyInfoButton 
+      :vacancyData="vacancyData"
+      :showVacancyModal="showVacancyModal"
+      @open-modal="openVacancyModal"
+    />
 
     <main class="main-content">
       <section class="form-section">
         <div class="container">
+          <!-- Убрали блок с информацией о вакансии из основного контента -->
+
+          <!-- Форма заполнения данных -->
           <div class="form-card">
             <h2>Заполните ваш профиль</h2>
-            <p class="subtitle">Эта информация поможет нам подобрать для вас подходящие вакансии</p>
+            <p class="subtitle">
+              {{ vacancyData 
+                ? 'Заполните данные для отклика на вакансию' 
+                : 'Эта информация поможет нам подобрать для вас подходящие вакансии' 
+              }}
+            </p>
             
             <form @submit.prevent="submitForm" class="profile-form">
               <div class="form-group">
@@ -52,9 +66,36 @@
                   >
                 </div>
               </div>
+
+              <!-- НОВЫЕ НЕОБЯЗАТЕЛЬНЫЕ ПОЛЯ -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="experience">Опыт работы (лет)</label>
+                  <input 
+                    type="number" 
+                    id="experience" 
+                    v-model="formData.experience" 
+                    placeholder="Например, 5"
+                    min="0"
+                  >
+                </div>
+                <div class="form-group">
+                  <label for="salaryExpectation">Желаемая зарплата (RUB)</label>
+                  <input 
+                    type="number" 
+                    id="salaryExpectation" 
+                    v-model="formData.salaryExpectation" 
+                    placeholder="Например, 150000"
+                    min="0"
+                  >
+                </div>
+              </div>
+              <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
               
               <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-full">Отправить</button>
+                <button type="submit" class="btn btn-primary btn-full">
+                  {{ vacancyData ? 'Продолжить к загрузке резюме' : 'Отправить' }}
+                </button>
               </div>
             </form>
             
@@ -66,50 +107,148 @@
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="container">
-        <p>&copy; 2025 AIlyzer. ARPL Team.</p>
-      </div>
-    </footer>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
+import { api } from '@/utils/api'
+import VacancyInfoButton from '../components/VacancyInfoButton.vue'
+import VacancyDetailsModal from '../components/VacancyDetailsModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const appStore = useAppStore()
 
 const formData = ref({
   fullName: '',
   email: '',
   phone: '',
+  experience: null,
+  salaryExpectation: null,
 })
 
-onMounted(() => {
+const vacancyData = ref(null)
+const loadingVacancy = ref(false)
+const vacancyError = ref('')
+const showVacancyModal = ref(false) // Новое состояние для модального окна
+
+// Получение текста уровня вакансии
+const getLevelText = (level) => {
+  const levelMap = {
+    junior: 'Junior',
+    middle: 'Middle',
+    senior: 'Senior',
+    lead: 'Lead'
+  }
+  return levelMap[level] || level
+}
+
+// Загрузка данных вакансии
+const loadVacancyData = async (vacancyId) => {
+  loadingVacancy.value = true
+  vacancyError.value = ''
+  
+  try {
+    const data = await api.getVacancyById(vacancyId)
+    vacancyData.value = data
+    
+    appStore.setUserData({
+        vacancyId: parseInt(vacancyId),
+        vacancyData: data
+    })
+    
+    console.log('Vacancy data loaded:', data)
+  } catch (error) {
+    console.error('Error loading vacancy:', error)
+    vacancyError.value = error.message || 'Не удалось загрузить данные вакансии'
+    
+    // Очищаем данные о вакансии, если произошла ошибка
+    appStore.setUserData({
+        vacancyId: null,
+        vacancyData: null
+    })
+  } finally {
+    loadingVacancy.value = false
+  }
+}
+
+// Открытие модального окна
+const openVacancyModal = () => {
+  showVacancyModal.value = true
+}
+
+// Закрытие модального окна
+const closeVacancyModal = () => {
+  showVacancyModal.value = false
+}
+
+onMounted(async () => {
   appStore.loadFromStorage()
-  if (appStore.userData) {
-    formData.value.fullName = appStore.userData.fullName || ''
-    formData.value.email = appStore.userData.email || ''
-    formData.value.phone = appStore.userData.phone || ''
+  
+  // Загружаем существующие данные пользователя/резюме
+  const storedData = appStore.resumeData || appStore.userData
+
+  if (storedData) {
+    formData.value.fullName = storedData.fullName || ''
+    formData.value.email = storedData.email || ''
+    formData.value.phone = storedData.phone || ''
+    formData.value.experience = storedData.experience || null
+    formData.value.salaryExpectation = storedData.salaryExpectation || null
+  }
+  
+  // Проверяем наличие ID вакансии в URL
+  const vacancyId = route.params.id
+  if (vacancyId) {
+    console.log('Vacancy ID from URL:', vacancyId)
+    
+    // Проверяем, есть ли данные вакансии в Store и соответствует ли ID
+    const idInt = parseInt(vacancyId)
+    const currentVacancyId = appStore.userData.vacancyId
+    const currentVacancyData = appStore.userData.vacancyData
+    
+    if (currentVacancyId === idInt && currentVacancyData) {
+        // Данные уже загружены, просто отображаем их
+        vacancyData.value = currentVacancyData
+        console.log('Vacancy data restored from store.')
+    } else {
+        // Загружаем данные с сервера
+        await loadVacancyData(vacancyId)
+    }
+  } else {
+    // Если ID вакансии в URL нет, очищаем данные о вакансии в store
+    appStore.setUserData({ vacancyId: null, vacancyData: null })
+    vacancyData.value = null
   }
 })
 
 const submitForm = () => {
+  // Сохраняем контакты и опциональные поля
   appStore.setResumeData({
     fullName: formData.value.fullName,
     email: formData.value.email,
     phone: formData.value.phone,
+    experience: formData.value.experience ? parseInt(formData.value.experience) : null,
+    salaryExpectation: formData.value.salaryExpectation ? parseInt(formData.value.salaryExpectation) : null,
     resumeText: appStore.userData.resumeText ?? ''
   })
 
-  router.push('/resume-analysis')
+  // Определяем, куда переходить
+  const vacancyId = route.params.id
+
+  if (vacancyId) {
+    router.push(`/resume-analysis/${vacancyId}`)
+  } else {
+    router.push('/resume-analysis')
+  }
 }
 </script>
 
 <style scoped>
+/* Основные стили */
+
 .data-form-view {
   min-height: 100vh;
   display: flex;
@@ -117,17 +256,10 @@ const submitForm = () => {
   background-color: #f8f9fa;
 }
 
-.main-content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-}
-
 .form-section {
   width: 100%;
 }
+
 
 .form-card {
   background: white;
@@ -135,8 +267,6 @@ const submitForm = () => {
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
 }
 
 .form-card h2 {
@@ -178,6 +308,7 @@ const submitForm = () => {
   border-radius: 6px;
   font-size: 16px;
   transition: border-color 0.3s;
+  box-sizing: border-box;
 }
 
 .profile-form input:focus {
@@ -202,88 +333,24 @@ const submitForm = () => {
   color: #666;
 }
 
-/* Header */
-.header {
-  background-color: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 15px 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header .container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo h1 {
-  color: #10b981;
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.page-title {
-  font-weight: 500;
-  color: #666;
-}
-
-/* Buttons */
-.btn {
-  display: inline-block;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: 500;
-  text-decoration: none;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.btn-primary {
-  background-color: #10b981;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: #0da271;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
-}
-
-.btn-outline {
-  background-color: transparent;
-  color: #10b981;
-  border: 1px solid #10b981;
-}
-
-.btn-outline:hover {
-  background-color: #10b981;
-  color: white;
-}
-
-.btn-full {
-  width: 100%;
-}
-
-/* Footer */
-.footer {
-  background-color: #333;
-  color: white;
-  padding: 20px 0;
-  text-align: center;
-}
-
 @media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    max-height: 85vh;
+  }
+  
+  .modal-header {
+    padding: 15px 20px;
+  }
+  
+  .modal-body {
+    padding: 20px;
+  }
+  
+  .vacancy-details-modal h2 {
+    font-size: 1.5rem;
+  }
+  
   .header .container {
     flex-direction: column;
     gap: 15px;
@@ -301,7 +368,6 @@ const submitForm = () => {
   
   .form-card {
     padding: 30px 20px;
-    margin: 20px;
   }
   
   .form-card h2 {

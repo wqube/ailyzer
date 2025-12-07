@@ -2,7 +2,6 @@ from os import getenv
 from pathlib import Path
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-from shared.core.config import settings as shared_settings
 
 BASE_DIR = Path(__file__).parent.parent
 
@@ -27,10 +26,8 @@ class AuthJWT(BaseModel):
 
 
 class Settings(BaseSettings):
-    # Подключение общих настроек (базы данных)
-    shared: object = shared_settings
     api_v1_prefix: str = "/api/v1"
-    # db: DbSettings = DbSettings()
+    db: DbSettings = DbSettings()
     auth_jwt: AuthJWT = AuthJWT()
     
 

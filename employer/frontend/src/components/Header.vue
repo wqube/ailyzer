@@ -2,17 +2,50 @@
     <header class="header">
         <div class="container">
             <div class="logo">
-            <h1>Ailyzer</h1>
+                <h1 @click="navigateTo('mainpage')">Ailyzer</h1>
             </div>
 
             <div class="header-actions">
-                <span class="page-title">{{ pageTitles[currentPage] }}</span>
+                <span class="page-title">{{ pageTitle }}</span>
                 <div class="auth-buttons">
-                    <button v-if="currentPage !== 'registration'" @click="$emit('navigate', 'registration')" class="btn btn-outline"> Регистрация </button>
-          
-                    <button v-if="currentPage !== 'login'" @click="$emit('navigate', 'login')" class="btn btn-outline"> Вход </button>
-          
-                    <button v-if="currentPage !== 'mainpage'" @click="$emit('navigate', 'mainpage')" class="btn btn-primary"> Главная </button>
+                    <!-- Кнопки для НЕавторизованных пользователей -->
+                    <template v-if="!authStore.isAuthenticated">
+                        <button 
+                            v-if="currentPage !== 'registration'" 
+                            @click="navigateTo('registration')" 
+                            class="btn btn-outline"
+                        >
+                            Регистрация
+                        </button>
+              
+                        <button 
+                            v-if="currentPage !== 'login'" 
+                            @click="navigateTo('login')" 
+                            class="btn btn-outline"
+                        >
+                            Вход
+                        </button>
+                    </template>
+
+                    <!-- Кнопка для авторизованных пользователей -->
+                    <template v-if="authStore.isAuthenticated">
+
+                        <button  
+                        @click="handleLogout" 
+                        class="btn btn-primary"
+                    >
+                        Выйти
+                    </button>
+
+                    <button 
+                        v-if="currentPage !== 'dashboard'" 
+                        @click="navigateTo('dashboard')" 
+                        class="btn btn-primary"
+                    >
+                        Дашборд
+                    </button>
+
+                    </template>
                 </div>
             </div>
         </div>
@@ -20,25 +53,81 @@
 </template>
 
 <script>
-    export default {
+import { useAuthStore } from '@/stores/auth';
+import { authUtils } from '@/utils/api';
+
+export default {
     name: 'Header',
     props: {
         currentPage: String
     },
     emits: ['navigate'],
-    data() {
+    
+    setup() {
+        const authStore = useAuthStore();
+        
+        // Проверяем аутентификацию при инициализации
+        authStore.checkAuth();
+        
         return {
-        pageTitles: {
-            mainpage: 'Главная страница',
-            login: 'Вход для работодателя',
-            registration: 'Регистрация работодателя'
-        }
+            authStore
+        };
+    },
+
+    computed: {
+        pageTitle() {
+            const titles = {
+                mainpage: 'Главная страница',
+                login: 'Вход для работодателя',
+                registration: 'Регистрация работодателя',
+                dashboard: 'Дашборд работодателя'
+            };
+            return titles[this.currentPage] || 'AIlyzer';
         }
     },
+
     methods: {
         navigateTo(page) {
             this.$emit('navigate', page);
+        },
+
+        async handleLogout() {
+            // Показываем диалог подтверждения
+            const isConfirmed = await this.showLogoutConfirmation();
+            
+            if (!isConfirmed) {
+                return; // Пользователь отменил выход
+            }
+            
+            await this.authStore.logout();
+            
+            // Переходим на главную если мы на dashboard
+            if (this.currentPage === 'dashboard') {
+                this.navigateTo('mainpage');
+            }
+        },
+
+        showLogoutConfirmation() {
+            return new Promise((resolve) => {
+                // Используем браузерный confirm
+                const userConfirmed = window.confirm('Вы уверены, что хотите выйти?');
+                resolve(userConfirmed);
+                
+                // Альтернатива: можно использовать кастомное модальное окно
+                // this.$emit('show-confirmation', {
+                //     message: 'Вы уверены, что хотите выйти?',
+                //     onConfirm: () => resolve(true),
+                //     onCancel: () => resolve(false)
+                // });
+            });
+        }
+    },
+
+    watch: {
+        // Отслеживаем изменения страницы и проверяем аутентификацию
+        currentPage() {
+            this.authStore.checkAuth();
         }
     }
-    }
+}
 </script>

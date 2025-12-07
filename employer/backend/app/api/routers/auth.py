@@ -7,11 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from jwt.exceptions import InvalidTokenError
 
-from db_old.models.models import User, Role, Token
-from db_old.session import db_helper
-from schemas.auth import UserRegister, UserLogin, TokenPair, TokenRefresh
-from auth.utils import hash_password, validate_password, encode_jwt, decode_jwt
-from core.config import settings
+from shared.db.session import db_helper
+from shared.db.models import User, Role, Token
+
+# from db_old.models.models import User, Role, Token
+
+from ...schemas.auth import UserRegister, UserLogin, TokenPair, TokenRefresh
+from ...auth.utils import hash_password, validate_password, encode_jwt, decode_jwt
+from ...core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -45,7 +48,6 @@ async def register_user(
         )
     
     # 2. Проверяем, что роль 'employer' существует (role_id=2)
-    # Если у вас другая логика назначения ролей - адаптируйте
     employer_role = await session.get(Role, 2)
     if not employer_role:
         raise HTTPException(
@@ -212,7 +214,7 @@ async def refresh_access_token(
         )
     
     # 3. Проверяем срок действия
-    if token_record.expires_at < datetime.utcnow():
+    if token_record.expires_at < datetime.utcnow(): # type: ignore
         # Удаляем истёкший токен
         await session.delete(token_record)
         await session.commit()

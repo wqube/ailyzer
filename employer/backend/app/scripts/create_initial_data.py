@@ -3,13 +3,22 @@
 Скрипт для создания начальных данных в БД (роли).
 
 Запуск:
-    python -m scripts.create_initial_data
+    python -m scripts.create_initial_data - не работает
+    python -m employer.backend.app.scripts.create_initial_data
 """
 
+import sys
+import os
 import asyncio
 from sqlalchemy import select
-from db_old.session import db_helper
-from db_old.models.models import Role
+
+# Добавляем корень проекта в Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '../../..'))
+sys.path.insert(0, project_root)
+
+from shared.db.session import db_helper
+from shared.db.models import Role
 
 
 async def create_roles():
@@ -50,6 +59,8 @@ async def main():
         print("\n✅ Все данные успешно созданы!")
     except Exception as e:
         print(f"\n❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         await db_helper.engine.dispose()
 

@@ -10,9 +10,21 @@ const routes = [
     component: DataFormView
   },
   {
+    path: '/:id', // Ссылка с ID вакансии
+    name: 'data-form-vacancy',
+    component: DataFormView,
+    props: true
+  },
+  {
     path: '/resume-analysis',
     name: 'resume-analysis',
     component: ResumeAnalysisView
+  },
+  {
+    path: '/resume-analysis/:id', // Анализ резюме для конкретной вакансии
+    name: 'resume-analysis-vacancy', 
+    component: ResumeAnalysisView,
+    props: true
   },
   {
     path: '/interview',

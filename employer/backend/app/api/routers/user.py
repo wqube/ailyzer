@@ -5,9 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 
-from db_old.models.models import User, Role
-from db_old.session import db_helper
-from schemas.user import UserCreate, UserRead
+
+from shared.db.session import db_helper
+from shared.db.models import User, Role
+
+from ...schemas.user import UserCreate, UserRead
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

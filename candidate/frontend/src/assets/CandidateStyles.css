@@ -1,0 +1,104 @@
+/* src/assets/CandidateStyles.css */
+
+/* --- Общий сброс (если не глобальный) --- */
+* {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0; 
+    padding: 0; 
+    width: 100%;
+    /* Предотвращает появление горизонтальной полосы прокрутки */
+    overflow-x: hidden; 
+}
+
+/* --- Стилизация контейнера (для центрирования содержимого) --- */
+/* Этот класс должен быть применен к div внутри Header и Footer */
+.container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px; /* Ограничиваем ширину содержимого */
+    margin: 0 auto;    /* Центрируем содержимое */
+    padding: 0 20px;   /* Добавляем отступы по бокам внутри контейнера */
+}
+
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+/* --- Стили для кнопок (для повторного использования) --- */
+
+.btn.listening {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #10b981;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #0da271;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: #10b981;
+  border: 1px solid #10b981;
+}
+
+.btn-large {
+  padding: 15px 40px;
+  font-size: 1.1em;
+}
+
+/* .btn-outline:hover:not(:disabled) {
+  background-color: #10b981;
+  color: white;
+} */
+ 
+
+.btn-outline:hover {
+  background-color: #10b981;
+  color: white;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}

@@ -8,7 +8,7 @@ from typing import List, Optional
 from .base import Base
 
 from sqlalchemy import (
-    BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text
+    BigInteger, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -75,7 +75,7 @@ class User(Base):
     )
 
 
-# 👇 НОВАЯ МОДЕЛЬ: Token для хранения refresh токенов
+# Token для хранения refresh токенов
 class Token(Base):
     """Таблица для хранения refresh токенов пользователей"""
     __tablename__ = "tokens"
@@ -180,8 +180,11 @@ class Resume(Base):
     )
 
     resume_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    candidate_id: Mapped[int] = mapped_column(
-        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
+    candidate_id: Mapped[Optional[int]] = mapped_column(  # Делаем опциональным
+        ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    application_id: Mapped[Optional[int]] = mapped_column(  # НОВОЕ: связь с заявкой
+        ForeignKey("applications.application_id", ondelete="CASCADE")
     )
     vacancy_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("vacancies.vacancy_id", ondelete="SET NULL")
@@ -191,7 +194,8 @@ class Resume(Base):
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB)
     upload_date: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    candidate: Mapped["User"] = relationship(back_populates="candidate_resumes")
+    candidate: Mapped[Optional["User"]] = relationship(back_populates="candidate_resumes")
+    application: Mapped[Optional["Application"]] = relationship(back_populates="resumes")  # НОВОЕ
     vacancy: Mapped[Optional["Vacancy"]] = relationship(back_populates="resumes")
 
 
@@ -284,6 +288,40 @@ class Evaluation(Base):
 
     interview: Mapped["Interview"] = relationship(back_populates="evaluation")
 
+
+class Application(Base):
+    __tablename__ = "applications"
+    __table_args__ = (
+        UniqueConstraint("email", "vacancy_id", name="uq_application_email_vacancy"),
+    )
+
+    application_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    # Поля, которые заполняются в candidate на этапе контактных данных
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    full_name: Mapped[str] = mapped_column(Text, nullable=False)
+    phone: Mapped[str] = mapped_column(Text, nullable=False)
+    vacancy_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("vacancies.vacancy_id", ondelete="SET NULL")
+    )
+    
+    # Поля, которые заполняются после парсинга резюме
+    position: Mapped[Optional[str]] = mapped_column(Text)
+    experience: Mapped[Optional[int]] = mapped_column(Integer)
+    salary_expectation: Mapped[Optional[int]] = mapped_column(Integer)
+    cover_letter: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # --- НОВЫЕ ПОЛЯ ---
+    # Храним средний балл (например, 7.5)
+    interview_score: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    # Статус заявки (new, interview_passed, interview_failed)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'new'"), nullable=False)
+    # ------------------
+    
+    created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    vacancy: Mapped[Optional["Vacancy"]] = relationship()
+    resumes: Mapped[List["Resume"]] = relationship(back_populates="application")
 
 # ---------- ОТЗЫВЫ HR ----------
 
