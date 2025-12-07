@@ -8,7 +8,7 @@ import sys, os
 
 from .routes import interview
 from .routes import resume
-from .routes import candidates
+from .routes import candidate_routes
 from .routes import vacancy_routes
 
 
@@ -30,7 +30,7 @@ app.add_middleware(
 app.include_router(resume.router)
 # app.include_router(interview.router)
 app.include_router(interview.router)
-app.include_router(candidates.router)
+app.include_router(candidate_routes.router)
 app.include_router(vacancy_routes.router)
 
 print("PYTHONPATH:", sys.path)

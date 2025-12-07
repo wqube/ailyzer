@@ -34,14 +34,6 @@
               <p class="stat-number">{{ stats.totalCandidates }}</p>
             </div>
           </div>
-
-          <div class="stat-card">
-            <div class="stat-icon">🎯</div>
-            <div class="stat-content">
-              <h3>Новые отклики</h3>
-              <p class="stat-number">{{ stats.newApplications }}</p>
-            </div>
-          </div>
         </div>
 
       <div class="quick-actions">
@@ -56,24 +48,7 @@
         </div>
       </div>
 
-      <div class="recent-activities" v-if="recentActivities.length > 0">
-        <h2>Последние активности</h2>
-        <div class="activities-list">
-          <div 
-            v-for="activity in recentActivities" 
-            :key="activity.id"
-            class="activity-item"
-          >
-            <div class="activity-icon" :class="activity.type">
-              {{ getActivityIcon(activity.type) }}
-            </div>
-            <div class="activity-content">
-              <p class="activity-text">{{ activity.text }}</p>
-              <span class="activity-time">{{ activity.time }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
     </div>
   </div>
@@ -85,20 +60,35 @@ import { api, authUtils } from '@/utils/api'
 export default {
   name: 'EmployerDashboardView',
 
-  //Данные для вакансий
   data() {
     return {
       loading: false,
       error: null,
-      vacancies: [], // ДОБАВИТЬ ЭТО
+
+      // данные, которые будем заполнять из БД (через backend-API)
+      vacancies: [],
+      candidates: [],
+
       stats: {
         totalVacancies: 0,
         activeVacancies: 0,
         totalCandidates: 0,
         newApplications: 0
       },
+
       recentActivities: []
     }
+  },
+
+  async mounted() {
+    // Проверяем авторизацию
+    if (!authUtils.isAuthenticated()) {
+      this.$router.push({ name: 'employer-login' })
+      return
+    }
+
+    // Загружаем данные дашборда из БД (через API)
+    await this.loadDashboardData()
   },
 
   methods: {
@@ -115,48 +105,56 @@ export default {
         this.$router.push({ name: 'employer-login' })
       }
     },
-    
-    navigateToVacancies() {
-      this.$router.push({ name: 'employer-vacancies' });
-      
-    },
-  },
-  
-  async mounted() {
-    // Проверяем авторизацию
-    if (!authUtils.isAuthenticated()) {
-      this.$router.push({ name: 'employer-login' })
-    }
-    
-    // Загружаем данные дашборда
-    await this.loadDashboardData()
-  },
 
-  async loadDashboardData() {
+    navigateToVacancies() {
+      this.$router.push({ name: 'employer-vacancies' })
+    },
+
+    // ГЛАВНЫЙ метод: читаем данные из БД через backend-API
+    async loadDashboardData() {
       this.loading = true
       this.error = null
-      
+
       try {
-        // 1. Загружаем вакансии
+        // 1. Загружаем вакансии работодателя из БД
         this.vacancies = await api.getMyVacancies()
+        console.log('DEBUG: 1. Загружено вакансий:', this.vacancies.length); 
+        if (this.vacancies.length > 0) {
+            // ИСПРАВЛЕНО: Теперь используем vacancy_id для лога
+            console.log('DEBUG: Первая вакансия ID (текущее значение):', this.vacancies[0].vacancy_id);
+        }
         
-        // 2. Загружаем кандидатов для каждой вакансии
+
+        // 2. Загружаем кандидатов по каждой вакансии из БД
         this.candidates = []
         for (const vacancy of this.vacancies) {
+          // ИСПРАВЛЕНО: Используем vacancy.vacancy_id
+          const vacancyId = vacancy.vacancy_id; 
+
+          // Критическая проверка на наличие ID
+          if (!vacancyId) {
+            console.warn(`Пропущена вакансия без ID: ${vacancy.title || 'Название неизвестно'}.`);
+            console.error('КРИТИЧЕСКАЯ ОШИБКА ДАННЫХ: Объект вакансии не содержит поля "vacancy_id". ПОЛНЫЙ ОБЪЕКТ:', vacancy); 
+            continue; 
+          }
+          
           try {
-            const vacancyCandidates = await api.getCandidatesForVacancy(vacancy.id)
+            // ИСПРАВЛЕНО: Используем vacancyId (который теперь равен vacancy.vacancy_id)
+            const vacancyCandidates = await api.getCandidatesForVacancy(vacancyId)
             this.candidates = [...this.candidates, ...vacancyCandidates]
           } catch (error) {
-            console.error(`Error loading candidates for vacancy ${vacancy.id}:`, error)
+            // Ошибка уже логируется в api.js, здесь просто продолжаем цикл
+            continue;
           }
         }
         
+        console.log('DEBUG: 2. Общее количество агрегированных кандидатов:', this.candidates.length); 
+
         // 3. Рассчитываем статистику
         this.calculateStats()
-        
-        // 4. Генерируем последние активности
+
+        // 4. Генерируем блок "Последние активности"
         this.generateRecentActivities()
-        
       } catch (error) {
         console.error('Error loading dashboard data:', error)
         this.error = 'Не удалось загрузить данные дашборда. Проверьте подключение к интернету.'
@@ -169,13 +167,14 @@ export default {
       // Статистика по вакансиям
       this.stats.totalVacancies = this.vacancies.length
       this.stats.activeVacancies = this.vacancies.filter(v => v.status === 'active').length
-      
+
       // Статистика по кандидатам
       this.stats.totalCandidates = this.candidates.length
-      
+
       // Новые отклики (кандидаты за последние 7 дней)
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
+
       this.stats.newApplications = this.candidates.filter(candidate => {
         const createdAt = new Date(candidate.created_at)
         return createdAt >= weekAgo
@@ -184,20 +183,22 @@ export default {
 
     generateRecentActivities() {
       const activities = []
-      
-      // Добавляем активности на основе последних вакансий
+
+      // Последние созданные вакансии
       this.vacancies.slice(0, 3).forEach(vacancy => {
+        // ИСПРАВЛЕНО: Используем vacancy.vacancy_id
         activities.push({
-          id: `vacancy-${vacancy.id}`,
+          id: `vacancy-${vacancy.vacancy_id}`,
           type: 'vacancy',
           text: `Создана вакансия "${vacancy.title}"`,
           time: this.formatTime(vacancy.created_at)
         })
       })
-      
-      // Добавляем активности на основе последних кандидатов
+
+      // Последние отклики кандидатов
       this.candidates.slice(0, 2).forEach(candidate => {
-        const vacancy = this.vacancies.find(v => v.id === candidate.vacancy_id)
+        // Поиск вакансии по vacancy_id
+        const vacancy = this.vacancies.find(v => v.vacancy_id === candidate.vacancy_id)
         const vacancyTitle = vacancy ? vacancy.title : 'неизвестная вакансия'
         activities.push({
           id: `candidate-${candidate.id}`,
@@ -206,8 +207,8 @@ export default {
           time: this.formatTime(candidate.created_at)
         })
       })
-      
-      // Если активностей мало, добавляем информационные
+
+      // Если активностей мало — показываем приветствие
       if (activities.length < 3) {
         activities.push({
           id: 'welcome-1',
@@ -216,13 +217,13 @@ export default {
           time: 'Только что'
         })
       }
-      
-      this.recentActivities = activities.slice(0, 5) // Ограничиваем 5 активностями
+
+      this.recentActivities = activities.slice(0, 5)
     },
 
     formatTime(dateString) {
       if (!dateString) return 'Недавно'
-      
+
       try {
         const date = new Date(dateString)
         const now = new Date()
@@ -230,7 +231,7 @@ export default {
         const diffMinutes = Math.floor(diffMs / (1000 * 60))
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-        
+
         if (diffMinutes < 60) {
           return `${diffMinutes} мин. назад`
         } else if (diffHours < 24) {
@@ -257,8 +258,10 @@ export default {
       }
       return icons[type] || icons.default
     }
+  }
 }
 </script>
+
 
 <style scoped>
 .employer-dashboard {
