@@ -1,4 +1,3 @@
-# api/routers/auth.py
 """Роутер для аутентификации: регистрация, вход, обновление токенов, выход"""
 
 from datetime import datetime, timedelta
@@ -8,7 +7,7 @@ from sqlalchemy import select, delete
 from jwt.exceptions import InvalidTokenError
 
 from shared.db.session import db_helper
-from shared.db.models import User, Role, Token
+from shared.db.models import User, Token
 
 # from db_old.models.models import User, Role, Token
 
@@ -31,7 +30,7 @@ async def register_user(
     
     - Проверяет уникальность email
     - Хеширует пароль
-    - Присваивает роль 'employer' (role_id=2)
+    - Присваивает роль 'employer' (role_id=2) - Теперь устанавливается DEFAULT значением в модели User
     - Создаёт пользователя в БД
     """
     
@@ -47,22 +46,17 @@ async def register_user(
             detail="Email already registered"
         )
     
-    # 2. Проверяем, что роль 'employer' существует (role_id=2)
-    employer_role = await session.get(Role, 2)
-    if not employer_role:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Employer role not found in database"
-        )
+    # ИЗМЕНЕНИЕ: Убираем проверку роли, так как предполагаем, что role_id=2
+    # будет установлено по умолчанию на уровне модели User.
     
-    # 3. Хешируем пароль
+    # 2. Хешируем пароль
     password_hash = hash_password(user_data.password)
     
-    # 4. Создаём пользователя
+    # 3. Создаём пользователя
     new_user = User(
         email=user_data.email,
         password_hash=password_hash.decode('utf-8'),  # bcrypt возвращает bytes
-        role_id=2,  # employer
+        # ИЗМЕНЕНИЕ: role_id=2 удалено
         status="active"
     )
     
@@ -123,7 +117,6 @@ async def login_user(
     access_token_payload = {
         "sub": str(user.user_id),  # 👈 КОНВЕРТИРУЕМ В СТРОКУ!
         "email": user.email,
-        "role_id": user.role_id,
     }
     
     access_token = encode_jwt(
@@ -236,7 +229,6 @@ async def refresh_access_token(
     access_token_payload = {
         "sub": user.user_id,
         "email": user.email,
-        "role_id": user.role_id,
     }
     
     new_access_token = encode_jwt(

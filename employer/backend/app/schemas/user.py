@@ -10,12 +10,10 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    role_id: int  # 👈 добавлено, потому что в модели User он обязателен
 
 
 class UserRead(UserBase):
     user_id: int
-    role_id: int
     status: str
     created_at: datetime
 

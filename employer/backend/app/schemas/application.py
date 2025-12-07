@@ -15,7 +15,9 @@ class CandidateApplication(BaseModel):
     salary_expectation: Optional[int] = None
     cover_letter: Optional[str] = None
     vacancy_id: Optional[int] = None
-    interview_score: Optional[float] = None # Исправлено на float
+    interview_score: Optional[float] = None
+    # 👈 ДОБАВЛЕНО: имя файла в MinIO, передается после успешной загрузки файла
+    storage_object_name: Optional[str] = None 
 
     @validator('phone')
     def validate_phone(cls, v):
@@ -38,6 +40,8 @@ class ApplicationResponse(BaseModel):
     vacancy_id: Optional[int]
     interview_score: Optional[float]
     created_at: datetime
+    # 👈 ДОБАВЛЕНО: для соответствия модели БД
+    storage_object_name: Optional[str] = None 
 
     class Config:
         from_attributes = True
@@ -61,11 +65,14 @@ class CandidateApplicationRead(BaseModel):
     position: Optional[str] = None
     salary_expectation: Optional[int] = None
     cover_letter: Optional[str] = None
+    # 👈 ДОБАВЛЕНО: для соответствия модели БД
+    storage_object_name: Optional[str] = None 
 
     # Поля, ожидаемые фронтендом
     status: str
     applied_at: datetime = Field(alias="created_at")
-    resume_url: Optional[str] = Field(default="/resumes/placeholder.pdf")
+    # 👈 ИЗМЕНЕНО: Удалено дефолтное значение-заглушка
+    resume_url: Optional[str] = Field(None, title="Presigned URL для скачивания резюме")
     
     class Config:
         from_attributes = True

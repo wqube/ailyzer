@@ -7,7 +7,7 @@ from typing import List
 
 
 from shared.db.session import db_helper
-from shared.db.models import User, Role
+from shared.db.models import User
 
 from ...schemas.user import UserCreate, UserRead
 
@@ -25,19 +25,11 @@ async def create_user(
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Проверяем, что роль существует (если передаётся role_id)
-    if user.role_id:
-        role = await session.get(Role, user.role_id)
-        if not role:
-            raise HTTPException(status_code=400, detail=f"Role {user.role_id} not found")
-    else:
-        raise HTTPException(status_code=400, detail="role_id is required")
 
     # Создаём нового пользователя
     new_user = User(
         email=user.email,
         password=user.password,
-        role_id=user.role_id,
         status="active",
     )
     session.add(new_user)

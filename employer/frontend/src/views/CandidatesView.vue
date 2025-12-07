@@ -107,7 +107,6 @@ export default {
         this.currentVacancy = await api.getVacancyById(vacancyId)
         
         // 2. Загружаем список кандидатов
-        // Бэкенд теперь возвращает массив объектов, где есть поле interview_score (float или null)
         const response = await api.getCandidatesForVacancy(vacancyId)
         
         // Сохраняем в переменную данных
@@ -125,18 +124,15 @@ export default {
 
     // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ШАБЛОНА ===
 
-    // Получение класса цвета в зависимости от балла (теперь возвращает кастомные классы)
+    // Получение класса цвета в зависимости от балла
     getScoreColorClass(score) {
       const numScore = parseFloat(score)
-      // Если оценка отсутствует или невалидна
       if (isNaN(numScore) || numScore === null || numScore === undefined) {
         return 'score-none' 
       }
-      
-      // Логика баллов
-      if (numScore >= 4) return 'score-high' // 4 и выше
-      if (numScore >= 2) return 'score-medium' // 2 или 3
-      return 'score-low' // 0 или 1
+      if (numScore >= 4) return 'score-high'
+      if (numScore >= 2) return 'score-medium'
+      return 'score-low'
     },
 
     // Получение текстового статуса
@@ -155,12 +151,11 @@ export default {
     // Класс для статуса
     getStatusClass(status) {
       const map = {
-        new: 'bg-blue-100 text-blue-800', // Эти классы из вашей стилизации, но могут не работать без Tailwind
+        new: 'bg-blue-100 text-blue-800', 
         interview_passed: 'bg-green-100 text-green-800',
         interview_failed: 'bg-red-100 text-red-800',
         rejected: 'bg-gray-100 text-gray-600',
       }
-      // Возвращаем класс, который используется в секции <style> (candidate-status)
       return status
     },
 
@@ -193,14 +188,21 @@ export default {
       // Логика перехода или открытия модалки
     },
     
+    // === НОВАЯ ЛОГИКА ДЛЯ СКАЧИВАНИЯ РЕЗЮМЕ ===
     downloadResume(candidate) {
+       // Проверяем, что URL существует
        if (candidate.resume_url) {
-        const url = candidate.resume_url.startsWith('http') 
-          ? candidate.resume_url 
-          : `http://localhost:8000${candidate.resume_url}`
-        window.open(url, '_blank')
+        // Presigned URL (candidate.resume_url) уже является полным, временным 
+        // URL-адресом для прямого скачивания из MinIO, 
+        // поэтому мы просто используем его без изменений.
+        window.open(candidate.resume_url, '_blank')
+        console.log('Скачивание начато:', candidate.resume_url)
       } else {
-        alert("Ссылка на резюме не найдена")
+        // Используем console.error вместо alert
+        console.error("Ссылка на резюме не найдена для кандидата:", candidate.full_name)
+        this.errorMessage = `Ошибка: Ссылка на резюме для ${candidate.full_name} не найдена.`
+        // Можно сбросить сообщение через несколько секунд
+        setTimeout(() => this.errorMessage = '', 5000)
       }
     }
   },

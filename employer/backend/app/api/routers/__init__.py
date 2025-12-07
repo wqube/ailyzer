@@ -25,7 +25,6 @@ router = APIRouter()
 router.include_router(auth_router)      # /api/v1/auth/*
 router.include_router(vacancy_router)   # /api/v1/vacancies/*
 router.include_router(user_router)      # /api/v1/users/*
-# router.include_router(role_router)      # /api/v1/role/*
 
 # 👇 ДЕМО роутеры (для тестирования, можно удалить в проде)
 # demo_auth_router.include_router(demo_auth_jwt_router)

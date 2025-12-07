@@ -99,10 +99,6 @@ async def get_current_employer(
     """
     
     # Проверяем роль (employer = 2)
-    if current_user.role_id != 2:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only employers can perform this action",
-        )
+    
     
     return current_user

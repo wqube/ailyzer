@@ -11,6 +11,8 @@ from typing import List, Optional
 from shared.db.session import db_helper
 # Добавляем InterviewScore, который нужен для агрегации
 from shared.db.models import User, Vacancy, Application
+# 👈 ИМПОРТИРУЕМ ФУНКЦИЮ ДЛЯ MINIO
+from shared.storage.minio_client import generate_presigned_url 
 
 from ...schemas.vacancy import VacancyCreate, VacancyRead, VacancyUpdate
 from ...schemas.application import CandidateApplicationRead # Используем новую схему с полями оценок
@@ -228,7 +230,7 @@ async def get_candidates_for_vacancy(
     session: AsyncSession = Depends(db_helper.get_db),
 ):
     """
-    Получить список кандидатов (откликов) для вакансии.
+    Получить список кандидатов (откликов) для вакансии, включая Presigned URL для резюме.
     """
     
     # 1. Проверяем существование и владение вакансией
@@ -241,7 +243,6 @@ async def get_candidates_for_vacancy(
         raise HTTPException(status_code=403, detail="Not the owner")
 
     # 2. Простой запрос к Application
-    # Так как interview_score уже есть в таблице Application, джойны не нужны.
     query = (
         select(Application)
         .where(Application.vacancy_id == vacancy_id)
@@ -251,10 +252,24 @@ async def get_candidates_for_vacancy(
     result = await session.execute(query)
     candidates = result.scalars().all()
     
-    # Pydantic (CandidateApplicationRead) автоматически возьмет 
-    # interview_score из модели Application
-    return candidates
+    # 3. Генерируем Presigned URL для каждого кандидата
+    candidates_with_url = []
+    for candidate in candidates:
+        # Копируем атрибуты в словарь, чтобы добавить вычисляемое поле
+        candidate_dict = candidate.__dict__.copy()
+        
+        # Генерируем ссылку, если имя объекта MinIO сохранено
+        if candidate.storage_object_name:
+            candidate_dict['resume_url'] = generate_presigned_url(
+                object_name=candidate.storage_object_name
+            )
+        else:
+            candidate_dict['resume_url'] = None
+            
+        candidates_with_url.append(candidate_dict)
 
+    # Возвращаем список словарей для обработки Pydantic (с включенным resume_url)
+    return candidates_with_url
 
 
 # ============ ПОЛУЧИТЬ ОДНОГО КАНДИДАТА ПО application_id ============
@@ -266,7 +281,7 @@ async def get_single_candidate(
     session: AsyncSession = Depends(db_helper.get_db),
 ):
     """
-    Получить детальные данные по конкретному кандидату.
+    Получить детальные данные по конкретному кандидату, включая Presigned URL для резюме.
     """
     
     # 1. Получаем заявку
@@ -281,4 +296,14 @@ async def get_single_candidate(
     if not vacancy or vacancy.hr_id != current_employer.user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    return application
+    # 3. Генерируем Presigned URL
+    application_dict = application.__dict__.copy()
+    if application.storage_object_name:
+        application_dict['resume_url'] = generate_presigned_url(
+            object_name=application.storage_object_name
+        )
+    else:
+        application_dict['resume_url'] = None
+    
+    # Возвращаем словарь для обработки Pydantic (с включенным resume_url)
+    return application_dict
