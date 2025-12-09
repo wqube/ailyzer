@@ -13,7 +13,9 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
 } else {
     // !!! ЗАМЕНИТЕ ЭТОТ АДРЕС НА ВАШ ПРОДАКШН-ДОМЕН API !!!
     // Например: https://api.ailyzer.ru
-    API_BASE_URL = 'https://api.ailyzer.ru'; 
+    API_BASE_URL = 'https://candidate.ailyzer.ru'; 
+    // Запрос пойдет на: https://candidate.ailyzer.ru/api/upload-resume
+    // Caddy отправит на бэкенд: /upload-resume
 }
 // ----------------------------------------------------
 

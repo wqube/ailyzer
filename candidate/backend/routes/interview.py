@@ -23,6 +23,7 @@ class AnswerReq(BaseModel):
     language: str = "en"
 
 @router.post("/api/start_interview")
+# @router.post("/start_interview")
 async def start_interview(req: StartInterviewReq):
     """
     Инициализация сессии интервью.
@@ -41,6 +42,7 @@ async def start_interview(req: StartInterviewReq):
     return {"session_id": session_id, "question": first_question}
 
 @router.post("/api/answer")
+# @router.post("/answer")
 async def post_answer(
     req: AnswerReq,
     # Добавляем зависимость от БД, чтобы сохранить результат

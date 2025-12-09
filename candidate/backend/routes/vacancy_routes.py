@@ -5,6 +5,7 @@ from shared.db.session import db_helper
 from shared.db.models import Vacancy
 
 router = APIRouter(prefix="/api/vacancies", tags=["Vacancies"])
+# router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
 
 @router.get("/{vacancy_id}")
 async def get_vacancy_by_id(

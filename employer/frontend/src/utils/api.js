@@ -13,7 +13,9 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
 } else {
     // !!! ЗАМЕНИТЕ ЭТОТ АДРЕС НА ВАШ ПРОДАКШН-ДОМЕН API !!!
     // Например: https://api.ailyzer.ru
-    BASE_API_URL = 'https://api.ailyzer.ru'; 
+    BASE_API_URL = 'https://employer.ailyzer.ru';
+    // Запрос пойдет на: https://employer.ailyzer.ru/api/v1/auth/login
+    // Caddy отправит на бэкенд: /v1/auth/login
 }
 
 // Флаг для использования mock данных (ставьте true только для тестов без бэкенда)

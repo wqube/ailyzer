@@ -17,6 +17,7 @@ from ..services.resume_service import process_resume_file
 router = APIRouter()
 
 @router.post("/api/upload-resume")  
+@router.post("/upload-resume")  
 async def upload_resume(
     # 🚨 ИСПРАВЛЕНИЕ 422: Удалил email и phone из формы, так как они не отправляются на этом шаге
     fullname: str = Form(...),
