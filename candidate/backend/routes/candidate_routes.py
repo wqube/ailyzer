@@ -10,8 +10,8 @@ from shared.db.models import Application, Resume
 from shared.storage.minio_client import generate_presigned_url 
 from sqlalchemy.exc import SQLAlchemyError 
 
-router = APIRouter(prefix="/api/candidates", tags=["Candidates"])
-# router = APIRouter(prefix="/candidates", tags=["Candidates"])
+# router = APIRouter(prefix="/api/candidates", tags=["Candidates"])
+router = APIRouter(prefix="/candidates", tags=["Candidates"])
 
 
 @router.post("/create")

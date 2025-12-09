@@ -22,8 +22,8 @@ class AnswerReq(BaseModel):
     answer: str
     language: str = "en"
 
-@router.post("/api/start_interview")
-# @router.post("/start_interview")
+# @router.post("/api/start_interview")
+@router.post("/start_interview")
 async def start_interview(req: StartInterviewReq):
     """
     Инициализация сессии интервью.
