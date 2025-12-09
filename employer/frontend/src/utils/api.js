@@ -1,4 +1,20 @@
-const API_BASE_URL = 'http://localhost:8000'
+// !!! ВАЖНАЯ НАСТРОЙКА: БАЗОВЫЙ URL API !!!
+
+// Определяем базовый URL в зависимости от среды:
+// 1. Если это локальная разработка (например, localhost), используем локальный бэкенд.
+// 2. Если это продакшн, используем публичный домен API.
+
+let BASE_API_URL;
+
+// Проверяем, запущен ли фронтенд локально (можно также проверить process.env.NODE_ENV === 'development')
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    // Используем локальный адрес бэкенда для разработки
+    BASE_API_URL = 'http://localhost:8000';
+} else {
+    // !!! ЗАМЕНИТЕ ЭТОТ АДРЕС НА ВАШ ПРОДАКШН-ДОМЕН API !!!
+    // Например: https://api.ailyzer.ru
+    BASE_API_URL = 'https://api.ailyzer.ru'; 
+}
 
 // Флаг для использования mock данных (ставьте true только для тестов без бэкенда)
 const USE_MOCK_DATA = false;
@@ -42,7 +58,7 @@ export const api = {
     if (USE_MOCK_DATA) { /* mock */ }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+      const response = await fetch(`${BASE_API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials)
@@ -57,7 +73,7 @@ export const api = {
 
   async registerUser(userData) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+        const response = await fetch(`${BASE_API_URL}/api/v1/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
@@ -70,7 +86,7 @@ export const api = {
   async getMyVacancies() {
     try {
       const tokens = authUtils.getTokens();
-      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/my`, {
+      const response = await fetch(`${BASE_API_URL}/api/v1/vacancies/my`, {
         headers: { 'Authorization': `Bearer ${tokens.access_token}` }
       });
       return await handleResponse(response);
@@ -79,7 +95,7 @@ export const api = {
 
   async createVacancy(data) {
     const tokens = authUtils.getTokens();
-    const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/`, {
+    const response = await fetch(`${BASE_API_URL}/api/v1/vacancies/`, {
       method: 'POST',
       headers: { 
           'Authorization': `Bearer ${tokens.access_token}`,
@@ -102,7 +118,7 @@ export const api = {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${id}`, {
+      const response = await fetch(`${BASE_API_URL}/api/v1/vacancies/${id}`, {
         method: 'PATCH', // PATCH используется для частичного обновления ресурса
         headers: { 
             'Authorization': `Bearer ${tokens.access_token}`,
@@ -128,7 +144,7 @@ export const api = {
 
     try {
       // Используем новый эндпоинт /delete/{vacancy_id}
-      const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/delete/${vacancyId}`, {
+      const response = await fetch(`${BASE_API_URL}/api/v1/vacancies/delete/${vacancyId}`, {
         method: 'DELETE', 
         headers: { 
             'Authorization': `Bearer ${tokens.access_token}`,
@@ -148,7 +164,7 @@ export const api = {
     const headers = {};
     if (tokens.access_token) headers['Authorization'] = `Bearer ${tokens.access_token}`;
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${id}`, { headers });
+    const response = await fetch(`${BASE_API_URL}/api/v1/vacancies/${id}`, { headers });
     return await handleResponse(response);
   },
 
@@ -157,7 +173,7 @@ export const api = {
     const tokens = authUtils.getTokens();
     if (!tokens.access_token) throw new Error('Not authenticated');
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/vacancies/${vacancyId}/candidates`, {
+    const response = await fetch(`${BASE_API_URL}/api/v1/vacancies/${vacancyId}/candidates`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
@@ -178,7 +194,7 @@ export const api = {
     const headers = {};
     if (tokens.access_token) headers['Authorization'] = `Bearer ${tokens.access_token}`;
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/resume/upload`, {
+    const response = await fetch(`${BASE_API_URL}/api/v1/resume/upload`, {
         method: 'POST',
         // FormData автоматически устанавливает Content-Type: multipart/form-data
         // Поэтому Content-Type не добавляем вручную
@@ -192,7 +208,7 @@ export const api = {
   async createCandidate(candidateData) {
     // Этот метод не был предоставлен, но необходим для ResumeAnalysisView.vue
     // Предполагаем, что он отправляет данные кандидата
-    const response = await fetch(`${API_BASE_URL}/api/v1/candidates/`, {
+    const response = await fetch(`${BASE_API_URL}/api/v1/candidates/`, {
         method: 'POST',
         headers: { 
             // Это публичный роут (отправляется без токена работодателя),
